@@ -1,0 +1,11 @@
+# Environnement virtuel
+venv/
+env_deepface/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# VS Code (optionnel)
+.vscode/

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset='UTF-8'>
+    <title> {% block titre %} Accueil {% endblock %} </title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="img">
+        <img src="{{ url_for('static', filename='images/VALLET.png') }}" alt="VALLET" >
+        <img src="{{ url_for('static', filename='images/CAEB_logo.png') }}" alt="CAEB_logo" >
+        <img src="{{ url_for('static', filename='images/BE.png') }}" alt="BE">        
+    </div>
+
+    
+    <header>
+
+    <h1>    <strong>RECONNAISSANCE-FACIALE</strong>     </h1>
+
+    <h2>    <str> Bibliothèque CAEB - Fondation VALLET</str>    </h2>
+
+    <h3>LABORATOIRE D'IA</h3>
+
+    <div class="btn">
+        <a href="/"  class="a1">Accueil</a>
+        <a href="/camera" class="a2">Caméra</a>
+        <a href="presence" class="a3">Présence</a>
+    </div>
+
+    </header>
+
+    {% block contenu %}
+    
+    <div class="container" style="text-align: center; padding: 30px;">
+
+        <h1 class="fade-in" style="color: #0065b1;">Système de Reconnaissance Faciale</h1>
+
+        <h3 class="fade-in" style="animation-delay: 0.2s;">Suivi automatique des présences – Laboratoire d'IA</h3>
+
+        <p class="fade-in" style="animation-delay: 0.4s;">
+            Ce système permet de détecter et reconnaître automatiquement les visages des membres du laboratoire dès leur entrée.
+            Chaque présence est enregistrée avec la date et l’heure dans un fichier Excel sécurisé.
+        </p>
+
+        <div class="fade-in" style="animation-delay: 0.6s;">
+            <a href="/camera"><button class="btnA"> Lancer la caméra</button></a>
+            <a href="/presence"><button class="btnA"> Voir la liste de présence</button></a>
+        </div>
+
+        <div class="fade-in" style="animation-delay: 0.8s;" >
+            <img class="imgA" src="{{ url_for('static', filename='images/facial_scan.jpeg') }}" alt="Reconnaissance faciale">
+        </div>
+
+        <div style="margin-top: 30px; color: #444;">
+            <h4><u>Conseils d'utilisation :</u></h4>
+            <ul style="list-style-type: disc; text-align: left; max-width: 600px; margin: 0 auto;">
+                <li>Assurez-vous que la caméra est bien connectée</li>
+                <li>Consultez la page "Présence" pour voir les arrivées du jour</li>
+            </ul>
+        </div>
+
+        <blockquote style="margin-top: 40px; font-style: italic; color: #555;">
+            "La technologie ne remplace pas l’humain, elle le soutient."
+        </blockquote>
+
+    </div>
+    
+    {% endblock %}
+
+    <hr>
+    <footer>
+        <p>© 2025</p>
+       <p>Developpé par le CLUB IA</p>
+       © Bibliothèque CAEB | © Fondation VALLET | © Bénin Excellence  
+    </footer>
+
+</body>
+
+
+</html>

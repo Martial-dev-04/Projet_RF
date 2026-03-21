@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block titre %}Caméra en direct{% endblock %}
+
+{% block contenu %} 
+
+    <h2 style="text-align:center;">Flux Vidéo en direct</h2>
+    <div style="text-align: left;" >
+        <img src="{{ url_for('video') }}" class="vid">
+    </div>
+    
+
+{% endblock %}

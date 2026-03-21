@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block titre %}Présence{% endblock %}
+
+{% block contenu %}
+    <h2><u>Liste de Présence du {{ nom_feuille }}</u></h2>
+
+    <form method="get" action="{{ url_for('presence') }}">
+        <label for="feuille">Sélectionner une date :</label>
+        <select name="feuille">
+            <option value="">-- Aujourd'hui --</option>
+            {% for feuille in feuilles_disponibles %}
+                <option value="{{ feuille }}" 
+                    {% if feuille == request.args.get('feuille') %}
+                        selected
+                    {% endif %}>
+                    {{ feuille }}
+                </option>
+            {% endfor %}
+        </select>
+        <button type="submit">Rechercher</button>
+    </form>
+
+
+    {% if donnees %}
+    
+        <table class="table">
+            <thead>
+                <tr class="tr">
+                    <th class="th">Nom et Prénoms</th>
+                    <th class="th">Heure</th>
+                    <th class="th">Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ligne in donnees %}
+                    <tr class="tr">
+                        <td class="td"> {{ ligne[0] }} </td>
+                        <td class="td"> {{ ligne[1] }} </td>
+                        <td class="td"> {{ ligne[2] }} </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p><u>Total des présences</u> : {{ total }} </p>
+
+    {% else %}
+
+        <p style="text-align: center;">Aucune présence enregistrée aujourd'hui.</p>
+        
+    {% endif %}
+
+        <!-- 📁 Télécharger toute la liste -->
+    <a href="{{ url_for('telecharger_excel') }}">
+        <button class="button">⬇️ Télécharger tout le fichier</button>
+    </a>
+
+    <form method="get" action="{{ url_for('telecharger_feuille') }}">
+        <input type="hidden" name="feuille" value="{{ request.args.get('feuille', '') }}">
+        <button type="submit" class="button">⬇️ Télécharger cette feuille</button>
+    </form>
+
+
+{% endblock %}
