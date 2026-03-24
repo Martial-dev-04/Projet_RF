@@ -33,7 +33,7 @@ jours_fr = {
 }
 
 # Charger le modèle
-model_data = joblib.load("C:/PROJETS/Reconnaissance_faciale/Projet_RF/face_model.pkl")
+model_data = joblib.load("C:/PROJETS/Reconnaissance_faciale/Projet_RF/model/face_model.pkl")
 svm_model = model_data["model"]
 label_encoder = model_data["encoder"]
 deepface_model = model_data["deepface_model"]
