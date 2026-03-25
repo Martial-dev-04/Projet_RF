@@ -66,8 +66,8 @@ class DatasetProcessor:
 
     def get_sharpness(self, image):
         """Retourne le nettété d'une image."""
-
-        return
+        vl = cv2.Laplacian(image, cv2.CV_64F).var()
+        return vl
     
     def augmenter_img(self):
         """Augemente le nombre d'images au seuil maximale."""
@@ -78,21 +78,39 @@ class DatasetProcessor:
         """Choisir une image au hazard dans le dossier et l'affiche"""
 
         folder_person = self.read_folder(folder_path)[1]
-        nom = os.path.basename(folder_path)
+        images_exemples = []
+        el = random.choice(folder_person)
         
-        
-        images_exemples = [(nom, random.choice(folder_person))]
+        if el.lower().endswith(('.jpg', '.png')):
+            nom = os.path.basename(folder_path)
+            images_exemples.append((nom, random.choice(folder_person)))
+            
+            lines = 1
+            columns = 1
+            figsize = (20, 20)
+            
+        else:
+            for folder in folder_person:
+                fichiers = self.read_folder(folder)[1]
+                nom = os.path.basename(folder)
+                images_exemples.append((nom, random.choice(fichiers)))
+                
+            lines = len(images_exemples)//2
+            columns = len(images_exemples)//4
+            figsize = (30, 30)                 
+
+            
 
         # Afficher les images d'exemple
         if images_exemples:
-            fig, axes = plt.subplots(1, len(images_exemples), figsize=(50, 20))
+            fig, axes = plt.subplots(lines, columns)
 
             axes = np.array(axes).reshape(-1)  # force en tableau 1D
 
             for i, (nom, path) in enumerate(images_exemples):
                 img = Image.open(path)
                 axes[i].imshow(img)
-                axes[i].set_title(nom, fontsize=10)
+                axes[i].set_title(nom, fontsize=8)
                 axes[i].axis('off')
             plt.tight_layout()
             plt.show()
@@ -100,15 +118,90 @@ class DatasetProcessor:
         return folder_person
         
     
-    def brightness_distribution(self):
+    def brightness_distribution(self, file_path):
         """Affiche la distribution de la luminosité"""
+        name  = os.path.basename(file_path)
+        brightness = []
+        el = random.choice(self.read_folder(file_path)[1])
+        
+        if el.lower().endswith(('.jpg', '.png')):
+            print(f"🌕 Calcule des luminosités moyennes pour {name}...")
+            fichiers = self.read_folder(file_path)[1]
+            for fichier in fichiers:
+                if self.validation_image(fichier):
+                    image = cv2.imread(fichier)
+                    lum = self.get_brightness(image)
+                    brightness.append(lum)
+        else:
+            print(f"🌕 Calcule des luminosités moyennes pour {name} (Dataset)...")
+            name  = os.path.basename(file_path)
+            folders = self.read_folder(file_path)[1]
+            for folder in folders:
+                fichiers = self.read_folder(folder)[1]
+                for fichier in fichiers:
+                    if self.validation_image(fichier):
+                        image = cv2.imread(fichier)
+                        lum = self.get_brightness(image)
+                        brightness.append(lum)
+        
+        
+        # Afficher du résultats sous forme d'histogramme
+        plt.figure(figsize=(10, 5))
+        plt.hist(brightness, bins=20, color='dodgerblue')
+        plt.title(f'Distribution de la luminosité moyenne des images pour {name}')
+        plt.xlabel('Luminosité moyenne')
+        plt.ylabel("Nombre d'images")
+        plt.grid(True)
+        plt.show()
 
-        return
+        # Quelques statistiques
+        print(f"Min : {np.min(brightness):.2f} | Max : {np.max(brightness):.2f}") 
+                        
+        return f"Nom: {name} \nLuminosité moyenne générale : {np.mean(brightness):.2f}"
     
-    def sharpness_distribution(self):
+    def sharpness_distribution(self, file_path):
         """Affiche la distribution de la nettété"""
+        name  = os.path.basename(file_path)
+        sharpness = []
+        el = random.choice(self.read_folder(file_path)[1])
+        
+        if el.lower().endswith(('.jpg', '.png')):
+            print(f"🌕 Calcule de la netétté des images pour {name}...")
+            fichiers = self.read_folder(file_path)[1]
+            for fichier in fichiers:
+                if self.validation_image(fichier):
+                    image = cv2.imread(fichier)
+                    lum = self.get_sharpness(image)
+                    sharpness.append(lum)
+        else:
+            print(f"🌕 Calcule de la netétté des images pour {name} (Dataset)...")
+            name  = os.path.basename(file_path)
+            folders = self.read_folder(file_path)[1]
+            for folder in folders:
+                fichiers = self.read_folder(folder)[1]
+                for fichier in fichiers:
+                    if self.validation_image(fichier):
+                        image = cv2.imread(fichier)
+                        lum = self.get_sharpness(image)
+                        sharpness.append(lum)
+    
+        # Tracer l'histogramme
+        plt.figure(figsize=(10,5))
+        plt.hist(sharpness, bins=40, color='orange', edgecolor = 'black')
+        plt.title(f"Distribution de la netteté des images normalisée(Variance du Laplacien) pour {name}")
+        plt.xlabel("Netteté (variance du Laplacien)")
 
-        return
+        # 🧠 Personnalisation des graduations :
+        #plt.xticks(ticks=range(0, 2000, 50))  # ici, de 0 à 3000 avec un pas de 200
+
+        plt.ylabel("Nombre d'images")
+        plt.axvline(x=50, color='red', linestyle='--', label='Seuil flou(50)' )
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+        return  f"Nom: {name} \nNetétté moyenne générale : {np.mean(sharpness):.2f}"
     
     def process_brightness(image, threshold_low, threshold_high):
         """Corrige la luminosité des images."""
