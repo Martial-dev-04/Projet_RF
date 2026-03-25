@@ -1,6 +1,6 @@
 # Environnement virtuel
 venv/
-env_RF/
+env_deepface/
 .venv/
 
 # Python

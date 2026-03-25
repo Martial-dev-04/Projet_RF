@@ -12,17 +12,31 @@ class DatasetProcessor:
         self.config = config
         self.log = []
     
-    def get_dataset_stats(path):
+    def get_dataset_stats(self,path):
         """Retourne : nb images, résolutions, distribution classes, etc."""
         stats = {
             "total_images": 0,
+            "total_classe": 0,
             "per_class": {},
             "image_sizes": [],
             "brightness_dist": []
             }
+        folders = self.read_folder(path) # récupère un tuple de (nombre_sous_dossier, liste_chemin_sous_dossier)
+        path_folders = folders[1] # stock liste_chemin_sous_dossier
         
-
+        stats["total_classe"] = folders[0] # stock nombre_sous_dossier
+        
+        for path_folder in path_folders:                # parcour la liste_chemin_sous_dossier
+            fichiers = self.read_folder(path_folder)    # récupère un tuple de (nombre_fichiers, liste_chemin_fichier)
+            
+            stats["total_images"] += fichiers[0]        # (incrémente) ajoute nombre_fichiers 
+            
+            per_class = stats["per_class"]
+            per_class[os.path.basename(path_folder)] = fichiers[0]  # ajoute le paire clé : valeur (Nom_dossier : nombre_fichier) au dictionnaire "per_classe"
+            
         return stats
+    
+    
     def validation_image(self, img_path):
         """Validation centralisée"""
         try:
@@ -39,9 +53,10 @@ class DatasetProcessor:
             print(f"❌Le dossier 📁 {folder_path} n'existe pas.")
             return []
         else :
-            return [os.path.join(folder_path, el) for el in os.listdir(folder_path) 
-            if self.validation_image(os.path.join(folder_path, el)) and os.path.isdir(os.path.join(folder_path, el)) or el.lower().endswith(('.jpg','.png'))
+            folders = [os.path.join(folder_path, el) for el in os.listdir(folder_path) 
+            if  os.path.isdir(os.path.join(folder_path, el)) or self.validation_image(os.path.join(folder_path, el)) and el.lower().endswith(('.jpg','.png'))
             ]
+            return (len(folders), folders)
     
     def get_brightness(self, image):
         """Retourne la luminosité moyenne d'une image"""
@@ -61,9 +76,8 @@ class DatasetProcessor:
     
     def view_image(self, folder_path):
         """Choisir une image au hazard dans le dossier et l'affiche"""
-        
 
-        folder_person = self.read_folder(folder_path)
+        folder_person = self.read_folder(folder_path)[1]
         nom = os.path.basename(folder_path)
         
         
