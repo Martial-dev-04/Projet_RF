@@ -1,31 +1,23 @@
- Parfait. Là on va construire un **`utils.py` niveau pro**, pas un simple fichier utilitaire, mais une **mini-framework interne** pour ton projet 💼🔥
-
-Objectif :
-
-> rendre ton code **modulaire, lisible, scalable et maintenable**
-
----
-
 # 🧱 🧠 ARCHITECTURE FINALE DE `utils.py`
 
 On va organiser ça en **4 blocs logiques** :
 
-```
+``
 utils.py
 │
 ├── 🔹 Config & constantes
 ├── 🔹 Outils généraux (helpers)
 ├── 🔹 DatasetProcessor (data pipeline)
 ├── 🔹 TrainTestModel (ML pipeline)
-```
+``
 
 ---
 
-# ⚙️ 1. CONFIGURATION GLOBALE
+## ⚙️ 1. CONFIGURATION GLOBALE
 
 👉 Centraliser tous les paramètres
 
-### 🎯 Rôle
+## 🎯 Rôle
 
 Éviter les valeurs “magiques” partout dans le code
 
@@ -44,7 +36,7 @@ utils.py
 
 ---
 
-# 🧰 2. HELPERS (OUTILS TRANSVERSES)
+## 🧰 2. HELPERS (OUTILS TRANSVERSES)
 
 👉 Petites fonctions réutilisables partout
 
@@ -85,7 +77,7 @@ utils.py
 
 ---
 
-# 🧠 3. CLASSE `DatasetProcessor`
+## 🧠 3. CLASSE `DatasetProcessor`
 
 👉 Le **cœur DATA de ton système**
 
@@ -262,14 +254,14 @@ Logique :
 
 Logique :
 
-```
+``
 clean_dataset()
 → resize_images()
 → augment_dataset()
 → extract_faces()
 → encode_faces()
 → train_test_split()
-```
+``
 
 👉 Une seule méthode → tout s’exécute
 
@@ -277,30 +269,30 @@ clean_dataset()
 
 ---
 
-# 🤖 4. CLASSE `TrainTestModel`
+## 🤖 4. CLASSE `TrainTestModel`
 
 👉 Le cerveau IA
 
 ---
 
-## 🔷 A. INITIALISATION
+### 🔷A. INITIALISATION
 
 * charger config
 * initialiser modèle
 
 ---
 
-## 🔷 B. ENTRAÎNEMENT
+### 🔷 B. ENTRAÎNEMENT
 
 ---
 
-### `train_model()`
+#### `train_model()`
 
 🎯 entraîner SVM / autre
 
 ---
 
-### `tune_model()`
+#### `tune_model()`
 
 🎯 optimiser hyperparamètres
 
@@ -308,11 +300,11 @@ clean_dataset()
 
 ---
 
-## 🔷 C. PRÉDICTION
+### 🔷 C. PRÉDICTION
 
 ---
 
-### `predict(image)`
+#### `predict(image)`
 
 🎯 reconnaître une personne
 
@@ -325,11 +317,11 @@ Retour :
 
 ---
 
-## 🔷 D. ÉVALUATION
+### 🔷 D. ÉVALUATION
 
 ---
 
-### `evaluate_model()`
+#### `evaluate_model()`
 
 🎯 mesurer performance
 
@@ -341,7 +333,7 @@ Retour :
 
 ---
 
-### `confusion_matrix()`
+#### `confusion_matrix()`
 
 🎯 visualiser erreurs
 
@@ -349,42 +341,42 @@ Retour :
 
 ---
 
-## 🔷 E. SAUVEGARDE
+### 🔷 E. SAUVEGARDE
 
 ---
 
-### `save_model()`
+#### `save_model()`
 
-### `load_model()`
-
----
+#### `load_model()`
 
 ---
 
-## 🔷 F. PIPELINE GLOBAL
+---
+
+### 🔷 F. PIPELINE GLOBAL
 
 ---
 
-### `run_training_pipeline()`
+#### `run_training_pipeline()`
 
 🎯 logique :
 
-```
+``
 load_encodings()
 → train_model()
 → evaluate_model()
 → save_model()
-```
+``
 
 ---
 
 ---
 
-# 🔐 5. GESTION DES EXCEPTIONS (STRUCTURÉE)
+## 🔐 5. GESTION DES EXCEPTIONS (STRUCTURÉE)
 
 ---
 
-## 🎯 Stratégie PRO
+### 🎯 Stratégie PRO
 
 ---
 
@@ -420,11 +412,11 @@ Créer une hiérarchie :
 
 ---
 
-# 🧹 6. LISIBILITÉ — NIVEAU PREMIUM
+## 🧹 6. LISIBILITÉ — NIVEAU PREMIUM
 
 ---
 
-## 🎯 Règles simples mais puissantes
+### 🎯 Règles simples mais puissantes
 
 ---
 
@@ -464,7 +456,7 @@ Exemple :
 
 ---
 
-# 🚀 CONCLUSION
+## 🚀 CONCLUSION
 
 👉 Ton futur `utils.py` devient :
 
@@ -472,7 +464,7 @@ Exemple :
 
 ---
 
-# 🔥 IMPACT
+## 🔥 IMPACT
 
 Avec cette architecture :
 
@@ -490,8 +482,6 @@ Si tu veux, prochain niveau :
 👉 je te fais un **schéma visuel de toute l’architecture du projet (Flask + IA + Excel)**
 👉 ou je t’aide à transformer ça en **pipeline automatisé réel** 💥
 
-
-
 ==================================================================================
 
 Parfait. Là on entre dans un vrai travail d’ingénieur ML 🧠⚙️
@@ -499,7 +489,7 @@ Je vais te structurer ça proprement pour que ton `utils.py` devienne **le cerve
 
 ---
 
-# 🧩 🔍 ANALYSE GLOBALE
+## 🧩 🔍 ANALYSE GLOBALE
 
 Ton fichier `utils.py` est déjà bien parti 👍
 Tu as :
@@ -514,7 +504,7 @@ Tu as :
 
 ---
 
-# 🧠 1. CLASSE `DatasetProcessor()`
+## 🧠 1. CLASSE `DatasetProcessor()`
 
 👉 Objectif : **gérer TOUT le dataset de A à Z**
 
@@ -731,13 +721,13 @@ Créer dataset propre pour ML
 
 ---
 
-# 🤖 2. CLASSE `TrainTestModel()`
+## 🤖 2. CLASSE `TrainTestModel()`
 
 👉 Nouvelle classe = **cerveau ML**
 
 ---
 
-## 📌 Méthodes à créer
+### 📌 Méthodes à créer
 
 ---
 
@@ -816,13 +806,13 @@ Créer dataset propre pour ML
 
 ---
 
-# ⚠️ 3. GESTION DES EXCEPTIONS (TRÈS IMPORTANT)
+## ⚠️ 3. GESTION DES EXCEPTIONS (TRÈS IMPORTANT)
 
 Tu dois passer en mode pro ici.
 
 ---
 
-## 🎯 Règles à appliquer
+### 🎯 Règles à appliquer
 
 ### 🔴 Cas critiques → lever erreur
 
@@ -844,9 +834,9 @@ Tu dois passer en mode pro ici.
 
 👉 ajouter dans :
 
-```
+``
 self.log.append(...)
-```
+``
 
 ---
 
@@ -860,7 +850,7 @@ Créer méthode :
 
 ---
 
-# 🧹 4. LISIBILITÉ DU CODE (GAME CHANGER)
+## 🧹 4. LISIBILITÉ DU CODE (GAME CHANGER)
 
 ---
 
@@ -904,18 +894,18 @@ Toujours :
 
 Ton code doit lire comme une histoire :
 
-```
+``
 load_dataset()
 → clean_dataset()
 → extract_faces()
 → encode_faces()
 → train_model()
 → evaluate_model()
-```
+``
 
 ---
 
-# 🧠 CONCLUSION
+## 🧠 CONCLUSION
 
 👉 Ton `utils.py` doit devenir :
 
@@ -925,7 +915,7 @@ Pas un fichier fourre-tout.
 
 ---
 
-# 🚀 NEXT LEVEL
+## 🚀 NEXT LEVEL
 
 Si tu veux, je peux :
 

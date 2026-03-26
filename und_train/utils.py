@@ -7,10 +7,34 @@ import matplotlib.pyplot as plt
 
 random.seed(42)
 
+config = {}
+
+class HELPERS():
+    def log(message, level):
+        
+        return
+    
+    def validate_path(path):
+        """Vérifie si le dossier/fichier existe"""
+        
+        return
+    
+    def is_image_file(file):
+        """Vérifie l'extension du fichier"""
+        
+        return
+    
+    def safe_read_image(path):
+        """lit image sans crash"""
+        
+        return
+
 class DatasetProcessor:
     def __init__(self, config=0):
         self.config = config
         self.log = []
+    
+    # ANALYSE DATASET
     
     def get_dataset_stats(self,path):
         """Retourne : nb images, résolutions, distribution classes, etc."""
@@ -36,16 +60,6 @@ class DatasetProcessor:
             
         return stats
     
-    
-    def validation_image(self, img_path):
-        """Validation centralisée"""
-        try:
-            with Image.open(img_path) as img:
-                img.verify()
-            return cv2.imread(str(img_path)) is not None
-        except Exception as e:
-            self.log.append(f"Invalid: {img_path} - {e}")
-            return False
     
     def read_folder(self, folder_path):
         """Lire le contenu d'un dossier"""
@@ -203,27 +217,147 @@ class DatasetProcessor:
 
         return  f"Nom: {name} \nNetétté moyenne générale : {np.mean(sharpness):.2f}"
     
+    def get_image_size(self):
+        """Retourne la taille de l'image"""
+
+        return
+    
+    # PRÉTRAITEMENT
+    
     def process_brightness(image, threshold_low, threshold_high):
         """Corrige la luminosité des images."""
 
         return
     
     def process_sharpness(image, threshold_low, threshold_high):
-        """Corrige la nettété d'une image"""
+        """Corrige la nettété (flou) d'une image"""
 
-        return
-    
-    def get_image_size(self):
-        """Retourne la taille de l'image"""
-
-        return
-    
-    def resize_img(self):
+        return    
+    def resize_image(self):
         """Redimentionne une image"""
 
+        return
+    
+    def  normalize_image(self):
+        """Normalise pixels (0 => 1)"""
+        
+        return
+    
+    # VALIDATION & NETTOYAGE
+    
+    def clean_dataset(self):
+        """Nettoie les mauvaise images du dataset"""
+        
+        return
+
+    def validation_image(self, img_path):
+        """Validation centralisée"""
+        try:
+            with Image.open(img_path) as img:
+                img.verify()
+            return cv2.imread(str(img_path)) is not None
+        except Exception as e:
+            self.log.append(f"Invalid: {img_path} - {e}")
+            return False
+    
+    # AUGMENTATION
+    
+    def augment_dataset(self):
+        """Ramener chaque classe du dataset au seuil max"""
+        
+        return
+    
+    # EXTRACTION VISAGE
+    
+    def detect_faces(self):
+        """Detecte de visage sur une image"""
+        
+        return
+    
+    def extract_faces(self):
+        """Crop le visage uniquement"""
+        
+        return
+    
+    # ENCODAGE
+    def encode_faces(self):
+        """Transformer image en vecteur"""
+        
+        return
+    
+    def save_encodings(self):
+        """Sauvegarde les encodages"""
+        
+        return
+    
+    def load_encodings(self):
+        """Charger les encodages"""
+        
         return
     
     def train_test_split(self):
         """Divise le dataset en Train/Test/Validation"""
 
+        return
+    
+    # PIPELINE GLOBAL
+    
+    def run_full_pipeline(self):
+        """Pipeline globale"""
+        
+        return
+    
+"""======================================================================"""
+
+class TrainTestModel():
+    def __init__(self, config, model):
+        self.config = config
+        self.model = model
+        
+    # ENTRAÎNEMENT
+    
+    def train_model(self):
+        """Entraine le model choisir"""
+        
+        return
+    
+    def tune_model(self):
+        """Optimise les hyperparamètres du modèle"""
+        
+        return
+    
+    # PRÉDICTION
+    
+    def predict(self, image):
+        """Reconnaitre une personne"""
+        
+        return
+    
+    def evaluate_model(self):
+        """Evalue la performance du modèle"""
+        
+        return
+    
+    def confusion_matrix(self):
+        """Visualiser les erreurs de calssifications"""
+        
+        return
+    
+    # SAUVEGARDE
+    
+    def save_model(self):
+        """Sauvegarde le modèle"""
+        
+        return
+    
+    def load_model(self):
+        """Charger le modèle"""
+        
+        return
+    
+    # PIPELINE GLOBAL
+    
+    def run_training_pipeline(self):
+        """Pipeline globale"""
+        
         return
