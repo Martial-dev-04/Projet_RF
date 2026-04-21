@@ -10,24 +10,34 @@ random.seed(42)
 config = {}
 
 class HELPERS():
-    def log(message, level):
-        
-        return
+    @staticmethod
+    def log(message, level="INFO"):
+        levels = {"INFOS": "ℹ", "WARNING": "⚠", "ERROR": "❌"}
+        print(f"{levels.get(level, '')} [{level}] {message}" )
     
+    @staticmethod
     def validate_path(path):
         """Vérifie si le dossier/fichier existe"""
-        
-        return
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Chemin introuvable : {path}")
+        return True
     
+    @staticmethod
     def is_image_file(file):
         """Vérifie l'extension du fichier"""
-        
-        return
+        return file.lower().endswith((".jpg", ".jpeg", ".png"))
     
+    @staticmethod
     def safe_read_image(path):
         """lit image sans crash"""
-        
-        return
+        try:
+            img = cv2.imread(path)
+            if img is None :
+                raise ValueError(f"Impossible de lire : {path}")
+            return img
+        except Exception as e :
+            HELPERS.log(str(e), "ERROR")
+            return None
 
 class DatasetProcessor:
     def __init__(self, config=0):
@@ -217,10 +227,11 @@ class DatasetProcessor:
 
         return  f"Nom: {name} \nNetétté moyenne générale : {np.mean(sharpness):.2f}"
     
-    def get_image_size(self):
+    def get_image_size(self, path):
         """Retourne la taille de l'image"""
-
-        return
+        img = HELPERS.safe_read_image(path)
+        h,w,c = img.shape
+        return (w,h)
     
     # PRÉTRAITEMENT
     
