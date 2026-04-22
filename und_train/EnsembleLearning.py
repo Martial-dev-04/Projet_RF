@@ -1,6 +1,15 @@
+"""
+Workaround pour éviter circular imports
+"""
+import sys
+import importlib
+
+# Vider le cache des modules si nécessaire
+if 'EnsembleLearning' in sys.modules:
+    del sys.modules['EnsembleLearning']
 """======================================================================"""
 
-from utils import HELPERS
+from helpers import HELPERS
 import os
 import numpy as np
 from matplotlib import pyplot as plt

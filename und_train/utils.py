@@ -1,3 +1,13 @@
+"""
+Workaround pour éviter circular imports
+"""
+import sys
+import importlib
+
+# Vider le cache des modules si nécessaire
+if 'utils' in sys.modules:
+    del sys.modules['utils']
+
 from PIL import Image
 import cv2
 import os
@@ -6,41 +16,11 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 import face_recognition
-from EnsembleLearning import EnsembleRecognizer
+from helpers import HELPERS
 
 random.seed(42)
 
 config = {}
-
-class HELPERS():
-    @staticmethod
-    def log(message, level="INFO"):
-        levels = {"INFOS": "ℹ️", "WARNING": "⚠️", "ERROR": "❌"}
-        print(f"{levels.get(level, '')} [{level}] {message}" )
-    
-    @staticmethod
-    def validate_path(path):
-        """Vérifie si le dossier/fichier existe"""
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Chemin introuvable : {path}")
-        return True
-    
-    @staticmethod
-    def is_image_file(file):
-        """Vérifie l'extension du fichier"""
-        return file.lower().endswith((".jpg", ".jpeg", ".png"))
-    
-    @staticmethod
-    def safe_read_image(path):
-        """lit image sans crash"""
-        try:
-            img = cv2.imread(path)
-            if img is None :
-                raise ValueError(f"Impossible de lire : {path}")
-            return img
-        except Exception as e :
-            HELPERS.log(str(e), "ERROR")
-            return None
 
 class DatasetProcessor:
     def __init__(self, config=0):
@@ -77,13 +57,20 @@ class DatasetProcessor:
     def read_folder(self, folder_path):
         """Lire le contenu d'un dossier"""
         if not os.path.exists(folder_path):
-            print(f"❌Le dossier 📁 {folder_path} n'existe pas.")
-            return []
-        else :
-            folders = [os.path.join(folder_path, el) for el in os.listdir(folder_path) 
-            if  os.path.isdir(os.path.join(folder_path, el)) or self.validation_image(os.path.join(folder_path, el)) and el.lower().endswith(('.jpg','.png'))
-            ]
-            return (len(folders), folders)
+            return (0, [])
+        
+        folders = []
+        try:
+            for el in os.listdir(folder_path):
+                el_path = os.path.join(folder_path, el)
+                if os.path.isdir(el_path):
+                    folders.append(el_path)
+                elif HELPERS.is_image_file(el_path):
+                    folders.append(el_path)
+        except Exception as e:
+            HELPERS.log(f"Erreur read_folder: {e}", "WARNING")
+        
+        return (len(folders), folders)
     
     def get_brightness(self, image):
         """Retourne la luminosité moyenne d'une image"""
@@ -320,7 +307,7 @@ class DatasetProcessor:
     
     def process_sharpness(self, image, threshold_low, threshold_high):
         """Corrige la nettété (flou) d'une image"""
-        sharpness = DatasetProcessor.get_sharpness(image)
+        sharpness = self.get_sharpness(image)
         
         if sharpness < threshold_low:
             # Appliquer un filtre de netteté
@@ -567,6 +554,7 @@ class TrainTestModel():
     Supporte SVM standard et Ensemble Learning
     """
     
+    
     def __init__(self, config, model_type='ensemble'):
         """
         Initialiser le modèle
@@ -575,6 +563,7 @@ class TrainTestModel():
         - config: configuration du modèle
         - model_type: 'ensemble' ou 'svm'
         """
+        from EnsembleLearning import EnsembleRecognizer
         self.config = config
         self.model_type = model_type
         
@@ -742,6 +731,7 @@ class TrainTestModel():
         
         Retourne: dict avec résultats et chemins
         """
+        from EnsembleLearning import EnsembleRecognizer
         from sklearn.model_selection import train_test_split as sklearn_split
         
         os.makedirs(output_path, exist_ok=True)
