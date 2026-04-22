@@ -105,7 +105,7 @@ class DatasetProcessor:
         images_exemples = []
         el = random.choice(folder_person)
         
-        if el.lower().endswith(('.jpg', '.png')):
+        if HELPERS.is_image_file(el):
             nom = os.path.basename(folder_path)
             images_exemples.append((nom, random.choice(folder_person)))
             
