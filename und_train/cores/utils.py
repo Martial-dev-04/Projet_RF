@@ -16,7 +16,7 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 import face_recognition
-from Projet_RF.und_train.cores.helpers import HELPERS
+from cores.helpers import HELPERS
 
 random.seed(42)
 
@@ -44,7 +44,7 @@ class DatasetProcessor:
         stats["total_classe"] = folders[0] # stock nombre_sous_dossier
         
         for path_folder in path_folders:                # parcour la liste_chemin_sous_dossier
-            fichiers = self.read_folder(path_folder)    # récupère un tuple de (nombre_fichiers, liste_chemin_fichier)
+            fichiers = HELPERS.read_folder(path_folder)    # récupère un tuple de (nombre_fichiers, liste_chemin_fichier)
             
             stats["total_images"] += fichiers[0]        # (incrémente) ajoute nombre_fichiers 
             
@@ -53,35 +53,6 @@ class DatasetProcessor:
             
         return stats
     
-    
-    def read_folder(self, folder_path):
-        """Lire le contenu d'un dossier"""
-        if not os.path.exists(folder_path):
-            return (0, [])
-        
-        folders = []
-        try:
-            for el in os.listdir(folder_path):
-                el_path = os.path.join(folder_path, el)
-                if os.path.isdir(el_path):
-                    folders.append(el_path)
-                elif HELPERS.is_image_file(el_path):
-                    folders.append(el_path)
-        except Exception as e:
-            HELPERS.log(f"Erreur read_folder: {e}", "WARNING")
-        
-        return (len(folders), folders)
-    
-    def get_brightness(self, image):
-        """Retourne la luminosité moyenne d'une image"""
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        return np.mean(gray)
-        
-
-    def get_sharpness(self, image):
-        """Retourne le nettété d'une image."""
-        vl = cv2.Laplacian(image, cv2.CV_64F).var()
-        return vl
     
     def augmenter_img(self, image, num_variants=3):
         """
@@ -136,7 +107,7 @@ class DatasetProcessor:
     def view_image(self, folder_path):
         """Choisir une image au hazard dans le dossier et l'affiche"""
 
-        folder_person = self.read_folder(folder_path)[1]
+        folder_person = HELPERS.read_folder(folder_path)[1]
         images_exemples = []
         el = random.choice(folder_person)
         
@@ -181,26 +152,26 @@ class DatasetProcessor:
         """Affiche la distribution de la luminosité"""
         name  = os.path.basename(file_path)
         brightness = []
-        el = random.choice(self.read_folder(file_path)[1])
+        el = random.choice(HELPERS.read_folder(file_path)[1])
         
-        if el.lower().endswith(('.jpg', '.png')):
+        if HELPERS.is_image_file(el):
             print(f"🌕 Calcule des luminosités moyennes pour {name}...")
-            fichiers = self.read_folder(file_path)[1]
+            fichiers = HELPERS.read_folder(file_path)[1]
             for fichier in fichiers:
                 if self.validation_image(fichier):
                     image = cv2.imread(fichier)
-                    lum = self.get_brightness(image)
+                    lum = HELPERS.get_brightness(image)
                     brightness.append(lum)
         else:
             print(f"🌕 Calcule des luminosités moyennes pour {name} (Dataset)...")
             name  = os.path.basename(file_path)
-            folders = self.read_folder(file_path)[1]
+            folders = HELPERS.read_folder(file_path)[1]
             for folder in folders:
-                fichiers = self.read_folder(folder)[1]
+                fichiers = HELPERS.read_folder(folder)[1]
                 for fichier in fichiers:
                     if self.validation_image(fichier):
                         image = cv2.imread(fichier)
-                        lum = self.get_brightness(image)
+                        lum = HELPERS.get_brightness(image)
                         brightness.append(lum)
         
         
@@ -222,26 +193,26 @@ class DatasetProcessor:
         """Affiche la distribution de la nettété"""
         name  = os.path.basename(file_path)
         sharpness = []
-        el = random.choice(self.read_folder(file_path)[1])
+        el = random.choice(HELPERS.read_folder(file_path)[1])
         
-        if el.lower().endswith(('.jpg', '.png')):
+        if HELPERS.is_image_file(el):
             print(f"🌕 Calcule de la netétté des images pour {name}...")
-            fichiers = self.read_folder(file_path)[1]
+            fichiers = HELPERS.read_folder(file_path)[1]
             for fichier in fichiers:
                 if self.validation_image(fichier):
                     image = cv2.imread(fichier)
-                    lum = self.get_sharpness(image)
+                    lum = HELPERS.get_sharpness(image)
                     sharpness.append(lum)
         else:
             print(f"🌕 Calcule de la netétté des images pour {name} (Dataset)...")
             name  = os.path.basename(file_path)
-            folders = self.read_folder(file_path)[1]
+            folders = HELPERS.read_folder(file_path)[1]
             for folder in folders:
-                fichiers = self.read_folder(folder)[1]
+                fichiers = HELPERS.read_folder(folder)[1]
                 for fichier in fichiers:
                     if self.validation_image(fichier):
                         image = cv2.imread(fichier)
-                        lum = self.get_sharpness(image)
+                        lum = HELPERS.get_sharpness(image)
                         sharpness.append(lum)
     
         # Tracer l'histogramme
@@ -262,11 +233,6 @@ class DatasetProcessor:
 
         return  f"Nom: {name} \nNetétté moyenne générale : {np.mean(sharpness):.2f}"
     
-    def get_image_size(self, path):
-        """Retourne la taille de l'image"""
-        img = HELPERS.safe_read_image(path)
-        h,w,c = img.shape
-        return (w,h)
     
     # PRÉTRAITEMENT
     
@@ -275,7 +241,7 @@ class DatasetProcessor:
         Corrige la luminosité intelligemment
         Utilise CLAHE pour meilleur contraste
         """
-        brightness = self.get_brightness(image)
+        brightness = HELPERS.get_brightness(image)
 
         # Décider de la stratégie d'ajustement en fonction de la luminosité
         if brightness < threshold_low:
@@ -307,7 +273,7 @@ class DatasetProcessor:
     
     def process_sharpness(self, image, threshold_low, threshold_high):
         """Corrige la nettété (flou) d'une image"""
-        sharpness = self.get_sharpness(image)
+        sharpness = HELPERS.get_sharpness(image)
         
         if sharpness < threshold_low:
             # Appliquer un filtre de netteté
@@ -321,14 +287,6 @@ class DatasetProcessor:
             return adjusted
         
         return image
-    
-    def resize_image(self, image, target_size=(224, 224)):
-        """Redimentionne une image"""
-        return cv2.resize(image, target_size)
-    
-    def  normalize_image(self, image):
-        """Normalise pixels (0 => 1)"""
-        return cv2.normalize(image, None, 0, 1, cv2.NORM_MINMAX)
     
     # VALIDATION & NETTOYAGE
     
@@ -348,44 +306,51 @@ class DatasetProcessor:
         valid_count = 0
         
         # Parcourir les dossiers de personnes
-        person_folders = self.read_folder(dataset_path)[1]
+        person_folders = HELPERS.read_folder(dataset_path)[1]
         for person_folder in person_folders:
+            valid = 0
+            deleted = 0
+            
             person_name = os.path.basename(person_folder)
             output_person_folder = os.path.join(output_path, person_name)
             os.makedirs(output_person_folder, exist_ok=True) # créer un dossier pour chaque personne dans le dossier de sortie
             
-            image_files = self.read_folder(person_folder)[1]
+            HELPERS.log(f"🔍 Nettoyage de {person_name}...", "INFOS")
+            
+            image_files = HELPERS.read_folder(person_folder)[1]
             for image_file in image_files:
                 
                 # Validation de l'image
-                if HELPERS.image_files(image_file) and self.validation_image(image_file):
+                if HELPERS.is_image_file(image_file) and self.validation_image(image_file):
                     HELPERS.log(f"Valid: {image_file}", "INFOS")
                     
                     # Lire l'image de manière sécurisée
                     image = HELPERS.safe_read_image(image_file)
                     if image is None:
                         HELPERS.log(f"Error reading image: {image_file}", "ERROR")
-                        deleted_count += 1
+                        deleted += 1
                         continue
                     
-                    # Vérifier la présence d'un visage
-                    faces = self.detect_faces(image)
-                    if len(faces) != 1:
-                        HELPERS.log(f"⚠ {image_file} : {len(faces)} visage(s) détecté(s)", "WARNING")
-                        deleted_count += 1
+                    # Vérifier la qualiter de l'image
+                    quality = HELPERS.check_image_quality(image)
+                    if not quality["is_valid"]:
+                        HELPERS.log(f"⚠ {image_file} : Image de mauvaise qualité", "WARNING")
+                        deleted += 1
                         continue
                     
                     # Copier l'image valide
                     output_img_path = os.path.join(output_person_folder, os.path.basename(image_file))
                     cv2.imwrite(output_img_path, image)
-                    valid_count += 1
+                    valid += 1
                 else:
                     HELPERS.log(f"Invalid: {image_file}", "ERROR")
-                    deleted_count += 1
+                    deleted += 1
                     continue
-            HELPERS.log(f"✅👤 {person_name} : {valid_count} valides, {deleted_count} supprimées", "INFOS")
+            HELPERS.log(f"✅ Nettoyage terminé. \n👤 {person_name} : {valid} valides ✔️, {deleted} supprimées ❌", "INFO")
+            valid_count += valid
+            deleted_count += deleted
         
-        HELPERS.log(f"✅📂 Dataset nettoyé : {valid_count} valides, {deleted_count} supprimées", "INFOS")
+        HELPERS.log(f"✅📂 Dataset nettoyé : {valid_count} valides ✔️, {deleted_count} supprimées ❌", "INFO")
         return {"valid": valid_count, "deleted": deleted_count}
 
     def validation_image(self, img_path):
@@ -416,15 +381,16 @@ class DatasetProcessor:
         
         stats = {"augmented": 0, "skipped": 0} # statistiques d'augmentation
         
-        persons = self.read_folder(dataset_path)[1]
+        persons = HELPERS.read_folder(dataset_path)[1]
         for person in persons:
             person_name = os.path.basename(person)
             output_person_folder = os.path.join(output_path, person_name)
             os.makedirs(output_person_folder, exist_ok=True)
             
-            images = self.read_folder(person)[1]
+            images = HELPERS.read_folder(person)[1]
             current_count = len(images)
             
+            # Vérifier si l'augmentation est nécessaire
             if current_count >= target_count:
                 HELPERS.log(f"✅ {person_name} : {current_count} images (déjà suffisant)", "INFOS")
                 stats["skipped"] += 1
@@ -468,55 +434,6 @@ class DatasetProcessor:
         HELPERS.log(f"✅📂 Augmentation terminée : {stats['augmented']} images générées, {stats['skipped']} classes déjà suffisantes", "INFOS")
         return stats
     
-    # EXTRACTION VISAGE
-    
-    def detect_faces(self, image, use_cnn=False, scale_factor=0.25):
-        """
-        Détecte visages avec options configurables
-        - use_cnn=True pour meilleure précision (plus lent)
-        - scale_factor: redimensionne pour speedup (0.25 = 4x plus rapide)
-        """
-        try:
-            # Redimentionnemnt pour  accélérer la détection
-            small_image = cv2.resize(image, (0, 0), fx=scale_factor, fy=scale_factor)
-            
-            # Détecter
-            model = "cnn" if use_cnn else "hog"
-            face_location = face_recognition.face_locations(small_image, model=model)
-            
-            # Re-scale les coordonnées des visages détectés pour correspondre à l'image originale
-            face_location = [(int(top/scale_factor), int(right/scale_factor), int(bottom/scale_factor), int(left/scale_factor)) for (top, right, bottom, left) in face_location]
-            
-            return face_location
-        except Exception as e:
-            HELPERS.log(f"Erreur de détection: {e}", "WARNING")
-            return []
-        
-    
-    def extract_faces(self, image, face_locations=None):
-        """
-        Crop les visages d'une image
-        Accepte face_locations pour éviter double détection
-        """
-        if face_locations is None:
-            face_locations = self.detect_faces(image)
-        
-        faces = []
-        face_infos = []
-        for (top, right, bottom, left) in face_locations:
-            # Ajouter padding pour éviter de couper les visages
-            padding = 10
-            top = max(0, top - padding)
-            left = max(0, left - padding)
-            bottom = min(image.shape[0], bottom + padding)
-            right = min(image.shape[1], right + padding)
-            
-            face = image[top:bottom, left:right]
-            
-            if face.size > 0:
-                faces.append(face)
-                face_infos.append({"top": top, "right": right, "bottom": bottom, "left": left})
-        return faces, face_infos
     
     # ENCODAGE
     def encode_faces(self):
@@ -563,7 +480,7 @@ class TrainTestModel():
         - config: configuration du modèle
         - model_type: 'ensemble' ou 'svm'
         """
-        from Projet_RF.und_train.cores.EnsembleLearning import EnsembleRecognizer
+        from cores.EnsembleLearning import EnsembleRecognizer
         self.config = config
         self.model_type = model_type
         
@@ -606,22 +523,26 @@ class TrainTestModel():
         
         HELPERS.log("🔍 Tuning des hyperparamètres...", "INFOS")
         
+        # Encoder les labels pour SVM
         le = LabelEncoder()
         y_encoded = le.fit_transform(y_train)
         
+        # Pipeline avec normalisation + SVM
         pipeline = Pipeline([
             ('scaler', StandardScaler()),
             ('svm', SVC(probability=True, random_state=42))
         ])
         
+        # Grille d'hyperparamètres à tester
         param_grid = {
-            'svm__kernel': ['linear', 'rbf'],
-            'svm__C': [0.1, 1, 10, 100],
-            'svm__gamma': ['scale', 'auto', 0.001, 0.01]
+            'svm__kernel': ['linear', 'rbf', 'poly', 'sigmoid'],  # tester plusieurs types de noyaux
+            'svm__C': [0.1, 1, 10, 100],                          # tester différentes valeurs de régularisation
+            'svm__gamma': ['scale', 'auto', 0.001, 0.01]          # tester différentes stratégies de gamma pour les noyaux non linéaires
         }
         
-        grid_search = GridSearchCV(pipeline, param_grid, cv=cv, n_jobs=-1, verbose=1)
-        grid_search.fit(X_train, y_encoded)
+        # Utiliser GridSearchCV pour trouver les meilleurs hyperparamètres
+        grid_search = GridSearchCV(pipeline, param_grid, cv=cv, n_jobs=-1, verbose=1) # verbose=1 pour afficher la progression
+        grid_search.fit(X_train, y_encoded) # entraîner le modèle sur les données d'entraînement
         
         HELPERS.log(f"✅ Meilleurs paramètres : {grid_search.best_params_}", "INFOS")
         HELPERS.log(f"   Meilleur score CV : {grid_search.best_score_:.4f}", "INFOS")
@@ -664,7 +585,7 @@ class TrainTestModel():
             )
             
             # Prédire
-            prediction = self.model.predict_single(X_combined[0], confidence_threshold=0.85)
+            prediction = self.model.predict_single(X_combined[0], confidence_threshold=0.90)
             
             HELPERS.log(f"✅ Prédiction : {prediction['name']} ({prediction['confidence']:.2f})", "INFOS")
             
@@ -731,7 +652,7 @@ class TrainTestModel():
         
         Retourne: dict avec résultats et chemins
         """
-        from Projet_RF.und_train.cores.EnsembleLearning import EnsembleRecognizer
+        from cores.EnsembleLearning import EnsembleRecognizer
         from sklearn.model_selection import train_test_split as sklearn_split
         
         os.makedirs(output_path, exist_ok=True)

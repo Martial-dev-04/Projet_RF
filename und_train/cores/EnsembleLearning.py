@@ -7,9 +7,10 @@ import importlib
 # Vider le cache des modules si nécessaire
 if 'EnsembleLearning' in sys.modules:
     del sys.modules['EnsembleLearning']
+    
 """======================================================================"""
 
-from Projet_RF.und_train.cores.helpers import HELPERS
+from cores.helpers import HELPERS
 import os
 import numpy as np
 from matplotlib import pyplot as plt
@@ -34,7 +35,7 @@ class EnsembleRecognizer:
             }
         """
         self.config = config or {
-            'embedding_models': ['ArcFace', 'VGG-Face', 'Facenet512'],
+            'embedding_models': ['ArcFace', 'VGG-Face', 'Facenet512'], 
             'classifiers': ['svm', 'knn', 'rf'],
             'voting_strategy': 'soft'
         }
