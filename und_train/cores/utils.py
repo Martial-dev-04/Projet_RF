@@ -31,6 +31,7 @@ class DatasetProcessor:
     
     def get_dataset_stats(self,path):
         """Retourne : nb images, résolutions, distribution classes, etc."""
+        HELPERS.log(f"📊 Analyse du dataset : {os.path.basename(path)}", "INFO")
         stats = {
             "total_images": 0,
             "total_classe": 0,
@@ -38,7 +39,7 @@ class DatasetProcessor:
             "image_sizes": [],
             "brightness_dist": []
             }
-        folders = self.read_folder(path) # récupère un tuple de (nombre_sous_dossier, liste_chemin_sous_dossier)
+        folders = HELPERS.read_folder(path) # récupère un tuple de (nombre_sous_dossier, liste_chemin_sous_dossier)
         path_folders = folders[1] # stock liste_chemin_sous_dossier
         
         stats["total_classe"] = folders[0] # stock nombre_sous_dossier
@@ -59,7 +60,7 @@ class DatasetProcessor:
         Génère PLUSIEURS variantes d'une image
         Au lieu d'une seule transformation
         """
-        
+        HELPERS.log(f"🔄 Génération de {num_variants} variantes pour augmentation...", "INFO")
         transformations = []
     
         for _ in range(num_variants):
@@ -94,12 +95,13 @@ class DatasetProcessor:
                     result = cv2.add(image.astype(float), noise)
                     result = np.clip(result, 0, 255).astype(np.uint8)
                 
-                if result is not None:
+                if result is not None and HELPERS.detect_faces(result):
                     transformations.append(result)
                     
             except Exception as e:
                 HELPERS.log(f"Erreur augmentation ({choix}): {e}", "WARNING")
                 continue
+        HELPERS.log(f"✅ {len(transformations)} variantes générées avec succès", "INFO")
         
         return transformations if transformations else [image]
         
@@ -111,6 +113,7 @@ class DatasetProcessor:
         images_exemples = []
         el = random.choice(folder_person)
         
+        # Vérifie s'il s'agit d'un fichier image ou d'un dossier de personnes
         if HELPERS.is_image_file(el):
             nom = os.path.basename(folder_path)
             images_exemples.append((nom, random.choice(folder_person)))
@@ -121,7 +124,7 @@ class DatasetProcessor:
             
         else:
             for folder in folder_person:
-                fichiers = self.read_folder(folder)[1]
+                fichiers = HELPERS.read_folder(folder)[1]
                 nom = os.path.basename(folder)
                 images_exemples.append((nom, random.choice(fichiers)))
                 
@@ -154,8 +157,9 @@ class DatasetProcessor:
         brightness = []
         el = random.choice(HELPERS.read_folder(file_path)[1])
         
+        # Vérifie s'il s'agit d'un fichier image ou d'un dossier de personnes
         if HELPERS.is_image_file(el):
-            print(f"🌕 Calcule des luminosités moyennes pour {name}...")
+            HELPERS.log(f"🌕 Calcule des luminosités moyennes pour {name}...", "INFO")
             fichiers = HELPERS.read_folder(file_path)[1]
             for fichier in fichiers:
                 if self.validation_image(fichier):
@@ -163,7 +167,7 @@ class DatasetProcessor:
                     lum = HELPERS.get_brightness(image)
                     brightness.append(lum)
         else:
-            print(f"🌕 Calcule des luminosités moyennes pour {name} (Dataset)...")
+            HELPERS.log(f"🌕 Calcule des luminosités moyennes pour {name} (Dataset)...", "INFO")
             name  = os.path.basename(file_path)
             folders = HELPERS.read_folder(file_path)[1]
             for folder in folders:
@@ -195,8 +199,9 @@ class DatasetProcessor:
         sharpness = []
         el = random.choice(HELPERS.read_folder(file_path)[1])
         
+        # Vérifie s'il s'agit d'un fichier image ou d'un dossier de personnes
         if HELPERS.is_image_file(el):
-            print(f"🌕 Calcule de la netétté des images pour {name}...")
+            HELPERS.log(f"🌕 Calcule de la netétté des images pour {name}...", "INFO")
             fichiers = HELPERS.read_folder(file_path)[1]
             for fichier in fichiers:
                 if self.validation_image(fichier):
@@ -204,7 +209,7 @@ class DatasetProcessor:
                     lum = HELPERS.get_sharpness(image)
                     sharpness.append(lum)
         else:
-            print(f"🌕 Calcule de la netétté des images pour {name} (Dataset)...")
+            HELPERS.log(f"🌕 Calcule de la netétté des images pour {name} (Dataset)...", "INFO")
             name  = os.path.basename(file_path)
             folders = HELPERS.read_folder(file_path)[1]
             for folder in folders:
@@ -241,10 +246,14 @@ class DatasetProcessor:
         Corrige la luminosité intelligemment
         Utilise CLAHE pour meilleur contraste
         """
+        HELPERS.log(f"🔍 Vérification de la luminosité pour ajustement...", "INFO")
+        
         brightness = HELPERS.get_brightness(image)
 
         # Décider de la stratégie d'ajustement en fonction de la luminosité
         if brightness < threshold_low:
+            HELPERS.log(f"⚠ Image sombre détectée (brightness={brightness:.2f}). Application d'une correction gamma pour éclaircir.", "WARNING")
+            
             # Image trop sombre : correction gamma pour éclaircir
             gamma = 1.5
             inv_gamma = 1.0/ gamma
@@ -252,14 +261,19 @@ class DatasetProcessor:
             adjusted = cv2.LUT(image, table)
             
         elif brightness > threshold_high:
+            HELPERS.log(f"⚠ Image trop lumineuse détectée (brightness={brightness:.2f}). Application d'une correction gamma pour réduire la luminosité.", "WARNING")
+            
             # Image trop lumineuse : réduire
             gamma = 0.7
             inv_gamma = 1.0 / gamma
             table = np.array([(i / 255.0) ** inv_gamma * 255 for i in range(256)]).astype("uint8")
             adjusted = cv2.LUT(image, table)
             
-        else: 
+        else:
+            HELPERS.log(f"✅ Luminosité dans la plage acceptable (brightness={brightness:.2f}). Aucune correction nécessaire.", "INFO")
+             
             adjusted = image.copy()  # Pas de correction nécessaire, mais on retourne une copie pour éviter les modifications en place
+            return adjusted
         
         # Appliquer CLAHE pour améliorer le contraste de manière intelligente
         gray = cv2.cvtColor(adjusted, cv2.COLOR_BGR2GRAY)
@@ -273,15 +287,21 @@ class DatasetProcessor:
     
     def process_sharpness(self, image, threshold_low, threshold_high):
         """Corrige la nettété (flou) d'une image"""
+        
+        HELPERS.log(f"🔍 Vérification de la netteté (sharpness) pour ajustement...", "INFO")
         sharpness = HELPERS.get_sharpness(image)
         
         if sharpness < threshold_low:
+            HELPERS.log(f"⚠ Image floue détectée (sharpness={sharpness:.2f}). Application d'un filtre de netteté.", "WARNING")
+            
             # Appliquer un filtre de netteté
             kernel = np.array([[0, -1, 0], [-1, 5,-1], [0, -1, 0]]) 
             adjusted = cv2.filter2D(image, -1, kernel)
             return adjusted
         
         elif sharpness > threshold_high:
+            HELPERS.log(f"⚠ Image très nette détectée (sharpness={sharpness:.2f}). Application d'un léger flou pour éviter les artefacts.", "WARNING")
+            
             # Appliquer un léger flou pour éviter les artefacts
             adjusted = cv2.GaussianBlur(image, (3, 3), 0)
             return adjusted
@@ -322,28 +342,29 @@ class DatasetProcessor:
                 
                 # Validation de l'image
                 if HELPERS.is_image_file(image_file) and self.validation_image(image_file):
-                    HELPERS.log(f"Valid: {image_file}", "INFOS")
+                    HELPERS.log(f"Valid: {os.path.basename(image_file)}", "INFOS")
                     
                     # Lire l'image de manière sécurisée
                     image = HELPERS.safe_read_image(image_file)
                     if image is None:
-                        HELPERS.log(f"Error reading image: {image_file}", "ERROR")
+                        HELPERS.log(f"Error reading image: {os.path.basename(image_file)}", "ERROR")
                         deleted += 1
                         continue
                     
                     # Vérifier la qualiter de l'image
                     quality = HELPERS.check_image_quality(image)
                     if not quality["is_valid"]:
-                        HELPERS.log(f"⚠ {image_file} : Image de mauvaise qualité", "WARNING")
+                        HELPERS.log(f"⚠ {os.path.basename(image_file)} : Image de mauvaise qualité", "WARNING")
                         deleted += 1
                         continue
+                    HELPERS.log(f"✅ {os.path.basename(image_file)} : Qualité OK (Brightness: {quality['brightness']:.2f}, Sharpness: {quality['sharpness']:.2f})", "INFO")
                     
                     # Copier l'image valide
                     output_img_path = os.path.join(output_person_folder, os.path.basename(image_file))
                     cv2.imwrite(output_img_path, image)
                     valid += 1
                 else:
-                    HELPERS.log(f"Invalid: {image_file}", "ERROR")
+                    HELPERS.log(f"Invalid: {os.path.basename(image_file)}", "ERROR")
                     deleted += 1
                     continue
             HELPERS.log(f"✅ Nettoyage terminé. \n👤 {person_name} : {valid} valides ✔️, {deleted} supprimées ❌", "INFO")
@@ -360,7 +381,7 @@ class DatasetProcessor:
                 img.verify()
             return cv2.imread(str(img_path)) is not None
         except Exception as e:
-            self.log.append(f"Invalid: {img_path} - {e}")
+            self.log.append(f"Invalid: {os.path.basename(img_path)} - {e}")
             return False
     
     # AUGMENTATION
@@ -419,9 +440,12 @@ class DatasetProcessor:
                     
                 # Enregistrer les augmentations générées
                 for aug_img in augmentation:
-                    if current_count >= target_count: # vérifie à chaque fois pour éviter de dépasser le target_count
+                    if current_count == target_count: # vérifie à chaque fois pour éviter de dépasser le target_count
                         break
-                    
+                    elif current_count > target_count:
+                        del images[0] # supprimer les images les plus anciennes pour faire de la place (si jamais on dépasse à cause des augmentations multiples)
+                        break
+
                     aug_img_name = f"{os.path.splitext(os.path.basename(img_path))[0]}_aug_{current_count}.jpg"
                     output_aug_path = os.path.join(output_person_folder, aug_img_name)
                     

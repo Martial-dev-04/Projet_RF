@@ -99,6 +99,8 @@ class HELPERS():
         if image is None:
             return {"is_valid": False, "score": 0, "reason": "image_none"}
         img = HELPERS.safe_read_image(image)
+        if img is None:
+            return {"is_valid": False, "score": 0, "reason": "image_read_failed"}
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
         # 🔹 1. Netteté
@@ -148,12 +150,14 @@ class HELPERS():
     def detect_faces(image, use_cnn=False, scale_factor=0.25):
         """
         Détecte visages avec options configurables
+        - image: numpy array (BGR)
         - use_cnn=True pour meilleure précision (plus lent)
         - scale_factor: redimensionne pour speedup (0.25 = 4x plus rapide)
         """
         try:
-            # Redimentionnemnt pour  accélérer la détection
-            small_image = cv2.resize(image, (0, 0), fx=scale_factor, fy=scale_factor)
+            # Redimentionnemnt pour  accélérer la détection et conversion en RGB
+            rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            small_image = cv2.resize(rgb, (0, 0), fx=scale_factor, fy=scale_factor)
             
             # Détecter
             model = "cnn" if use_cnn else "hog"
@@ -162,7 +166,7 @@ class HELPERS():
             # Re-scale les coordonnées des visages détectés pour correspondre à l'image originale
             face_location = [(int(top/scale_factor), int(right/scale_factor), int(bottom/scale_factor), int(left/scale_factor)) for (top, right, bottom, left) in face_location]
             
-            return True #face_location
+            return face_location if len(face_location) > 0 else []
         except Exception as e:
             HELPERS.log(f"Erreur de détection: {e}", "WARNING")
             return []
@@ -172,6 +176,9 @@ class HELPERS():
         """
         Crop les visages d'une image
         Accepte face_locations pour éviter double détection
+        Paramètres :
+        - image: numpy array (BGR)
+        - face_locations: liste des coordonnées des visages à extraire
         """
         if face_locations is None:
             face_locations = HELPERS.detect_faces(image)
@@ -214,15 +221,17 @@ class HELPERS():
         import face_recognition
         
         if image is None:
+            HELPERS.log("Image introuvable pour alignement", "ERROR")
             return None
         
         # Convertir en RGB
         rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
         # Détection visage
-        face_locations = face_recognition.face_locations(rgb)
+        face_locations = HELPERS.detect_faces(image)
         
         if len(face_locations) == 0:
+            HELPERS.log("Aucun visage détecté pour alignement", "WARNING")
             return None
         
         # Prendre le premier visage
@@ -232,6 +241,7 @@ class HELPERS():
         landmarks = face_recognition.face_landmarks(rgb, [(top, right, bottom, left)])
         
         if len(landmarks) == 0:
+            HELPERS.log("Aucun landmark détecté pour alignement", "WARNING")
             return None
         
         landmarks = landmarks[0]
@@ -247,19 +257,32 @@ class HELPERS():
         
         # Centre de rotation
         center = tuple(map(int, np.mean([left_eye, right_eye], axis=0)))
-        
+        h,w = image.shape[:2]
         # Rotation
         M = cv2.getRotationMatrix2D(center, angle, 1.0)
-        aligned = cv2.warpAffine(image, M, (image.shape[1], image.shape[0]))
+        aligned = cv2.warpAffine(image, M, (w, h))
+        
+        # Optionnel : Ajouter une marge autour du visage pour ne pas couper trop près
+        marge = int((bottom - top) * 0.2) # 20% de marge
+        
+        # S'assurer que les marges ne dépassent pas les bords de l'image
+        y1 = max(0, top - marge)
+        y2 = min(h, bottom + marge)
+        x1 = max(0, left - marge)
+        x2 = min(w, right + marge)
+    
+        # Rogner l'image
+        visage_rogne = aligned[y1:y2, x1:x2]
         
         # Crop après rotation
         face_crop = aligned[top:bottom, left:right]
         
         if face_crop.size == 0:
+            HELPERS.log("Crop du visage échoué", "WARNING")
             return None
         
         # Resize final
-        face_resized = cv2.resize(face_crop, output_size)
+        face_resized = cv2.resize(visage_rogne, output_size)
         
         return face_resized
     
