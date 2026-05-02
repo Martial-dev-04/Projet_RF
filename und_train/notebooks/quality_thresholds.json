@@ -1,0 +1,31 @@
+{
+    "sharpness_threshold": 56.66,
+    "brightness_min": 82.12,
+    "brightness_max": 185.98,
+    "contrast_threshold": 32.87,
+    "dataset_size": 20001,
+    "summary_stats": {
+        "sharpness": {
+            "mean": 188.65,
+            "median": 155.33,
+            "std": 125.85,
+            "min": 5.24,
+            "max": 585.16
+        },
+        "brightness": {
+            "mean": 123.77,
+            "median": 114.83,
+            "std": 33.9,
+            "min": 62.77,
+            "max": 236.55
+        },
+        "contrast": {
+            "mean": 41.95,
+            "median": 41.93,
+            "std": 7.12,
+            "min": 22.08,
+            "max": 61.7
+        }
+    },
+    "computed_at": "2026-04-29T21:29:43.442106"
+}

@@ -45,7 +45,7 @@ class HELPERS():
         Param: path (str) - chemin de l'image
         Return: (width, height) ou (0, 0) si erreur
         """
-        img = HELPERS.safe_read_image(path)
+        img = path #HELPERS.safe_read_image(path)
         h,w,c = img.shape
         return (w,h)
     
@@ -87,18 +87,20 @@ class HELPERS():
     @staticmethod
     def get_sharpness(image):
         """Retourne le nettété d'une image."""
-        vl = cv2.Laplacian(image, cv2.CV_64F).var()
-        return vl
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+        sharpness = laplacian.var()
+        return sharpness
     
     @staticmethod
-    def check_image_quality(image):
+    def check_image_quality(image, sharpness_threshold=80,brightness_threshold={"min": 50, "max": 180} ,contrast_threshold=30):
         import cv2
         import numpy as np
         import face_recognition
         
         if image is None:
             return {"is_valid": False, "score": 0, "reason": "image_none"}
-        img = HELPERS.safe_read_image(image)
+        img = image #HELPERS.safe_read_image(image)
         if img is None:
             return {"is_valid": False, "score": 0, "reason": "image_read_failed"}
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -117,14 +119,14 @@ class HELPERS():
         
         # 🔹 5. Visage détecté
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        faces = face_recognition.face_locations(rgb)
+        faces = HELPERS.detect_faces(img)
         has_face = len(faces) > 0
         
         # 🎯 Règles (à ajuster selon ton dataset)
         conditions = {
-            "sharpness": sharpness > 80,
-            "brightness": 50 < brightness < 200,
-            "contrast": contrast > 30,
+            "sharpness": sharpness > sharpness_threshold,
+            "brightness": brightness_threshold["min"] < brightness < brightness_threshold["max"],
+            "contrast": contrast > contrast_threshold,
             "size": h > 100 and w > 100,
             "face_detected": has_face
         }
@@ -199,7 +201,7 @@ class HELPERS():
                 faces.append(face)
                 face_infos.append({"top": top, "right": right, "bottom": bottom, "left": left})
                 
-        HELPERS.log(f"✅ {len(faces)} visage(s) extrait(s)", "INFOS")
+        HELPERS.log(f"✅ {len(faces)} visage(s) extrait(s)", "INFO")
         return faces, face_infos
     
     
@@ -263,7 +265,7 @@ class HELPERS():
         aligned = cv2.warpAffine(image, M, (w, h))
         
         # Optionnel : Ajouter une marge autour du visage pour ne pas couper trop près
-        marge = int((bottom - top) * 0.2) # 20% de marge
+        marge = int((bottom - top) * 0.10) # 10% de marge
         
         # S'assurer que les marges ne dépassent pas les bords de l'image
         y1 = max(0, top - marge)
@@ -282,7 +284,10 @@ class HELPERS():
             return None
         
         # Resize final
+        size = HELPERS.get_image_size(image)
+        
         face_resized = cv2.resize(visage_rogne, output_size)
+        
         
         return face_resized
     

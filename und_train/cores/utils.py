@@ -14,16 +14,39 @@ import os
 from matplotlib import image
 import numpy as np
 import random
+import json
 import matplotlib.pyplot as plt
 import face_recognition
 from cores.helpers import HELPERS
 
 random.seed(42)
 
-config = {}
+pat = "C:/PROJETS/Reconnaissance_faciale/Projet_RF/und_train/notebooks/quality_thresholds.json"
+try:
+    with open(pat, "r", encoding="utf-8") as f:
+        config = json.load(f)
+
+except PermissionError:
+    raise PermissionError(
+        f"Impossible d'écrire dans {pat}"
+    )
+    
+extreme_blur_threshold = config["sharpness_threshold"] - 10
+"""
+config = {
+    "nbr images par classe" : 2000,
+    "luminosité max": 170,
+    "luminosité min": 80,
+    "Nettété max": 100,
+    "Nettété min": 30,
+    "contraste min":30
+}
+"""
+
+
 
 class DatasetProcessor:
-    def __init__(self, config=0):
+    def __init__(self, config=config):
         self.config = config
         self.log = []
     
@@ -68,14 +91,14 @@ class DatasetProcessor:
             
             try:
                 if choix == 'rotation':
-                    angle = random.uniform(-15, 15)
+                    angle = random.uniform(-10, 10)
                     h, w = image.shape[:2]
                     M = cv2.getRotationMatrix2D((w//2, h//2), angle, 1)
                     result = cv2.warpAffine(image, M, (w, h), borderMode=cv2.BORDER_REFLECT)
                     
                 elif choix == 'contraste':
                     alpha = random.uniform(1.1, 1.6)
-                    beta = random.randint(-20, 20)
+                    beta = random.randint(-5, 5)
                     result = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
                     
                 elif choix == 'zoom':
@@ -241,72 +264,300 @@ class DatasetProcessor:
     
     # PRÉTRAITEMENT
     
-    def process_brightness(self, image, threshold_low=80, threshold_high=170):
+    def process_brightness(
+        self,
+        image,
+        threshold_low=config["brightness_min"],
+        threshold_high=config["brightness_max"]
+    ):
         """
-        Corrige la luminosité intelligemment
-        Utilise CLAHE pour meilleur contraste
+        Corrige la luminosité d'une image sans perdre les couleurs.
+
+        Paramètres:
+        - image : image BGR
+        - threshold_low : seuil minimum de luminosité
+        - threshold_high : seuil maximum de luminosité
+
+        Retourne:
+        - tuple (processed_image, status)
+            status:
+            - 'corrected'
+            - 'kept'
         """
-        HELPERS.log(f"🔍 Vérification de la luminosité pour ajustement...", "INFO")
-        
+
+        HELPERS.log(
+            "🔍 Vérification de la luminosité pour ajustement...","INFO")
+
+        # Validation d'entrée
+        if image is None:
+            raise ValueError("Image invalide (None).")
+
+        if len(image.shape) != 3:
+            raise ValueError(
+                "L'image doit être en couleur (BGR, 3 canaux)."
+            )
+
         brightness = HELPERS.get_brightness(image)
 
-        # Décider de la stratégie d'ajustement en fonction de la luminosité
+        adjusted = image.copy()
+        correction_applied = False
+
+        # -------- CORRECTION GAMMA --------
+
         if brightness < threshold_low:
-            HELPERS.log(f"⚠ Image sombre détectée (brightness={brightness:.2f}). Application d'une correction gamma pour éclaircir.", "WARNING")
-            
-            # Image trop sombre : correction gamma pour éclaircir
+            HELPERS.log(
+                f"⚠ Image sombre détectée "
+                f"(brightness={brightness:.2f}). "
+                f"Éclaircissement en cours...",
+                "WARNING"
+            )
+
             gamma = 1.5
-            inv_gamma = 1.0/ gamma
-            table = np.array([(i / 255.0) **  inv_gamma * 255 for i in range(256)]).astype("uint8")
-            adjusted = cv2.LUT(image, table)
-            
+            inv_gamma = 1.0 / gamma
+
+            table = np.array([
+                ((i / 255.0) ** inv_gamma) * 255
+                for i in range(256)
+            ]).astype("uint8")
+
+            adjusted = cv2.LUT(adjusted, table)
+            correction_applied = True
+
         elif brightness > threshold_high:
-            HELPERS.log(f"⚠ Image trop lumineuse détectée (brightness={brightness:.2f}). Application d'une correction gamma pour réduire la luminosité.", "WARNING")
-            
-            # Image trop lumineuse : réduire
+            HELPERS.log(
+                f"⚠ Image trop lumineuse détectée "
+                f"(brightness={brightness:.2f}). "
+                f"Réduction de luminosité...",
+                "WARNING"
+            )
+
             gamma = 0.7
             inv_gamma = 1.0 / gamma
-            table = np.array([(i / 255.0) ** inv_gamma * 255 for i in range(256)]).astype("uint8")
-            adjusted = cv2.LUT(image, table)
-            
+
+            table = np.array([
+                ((i / 255.0) ** inv_gamma) * 255
+                for i in range(256)
+            ]).astype("uint8")
+
+            adjusted = cv2.LUT(adjusted, table)
+            correction_applied = True
+
         else:
-            HELPERS.log(f"✅ Luminosité dans la plage acceptable (brightness={brightness:.2f}). Aucune correction nécessaire.", "INFO")
-             
-            adjusted = image.copy()  # Pas de correction nécessaire, mais on retourne une copie pour éviter les modifications en place
-            return adjusted
-        
-        # Appliquer CLAHE pour améliorer le contraste de manière intelligente
-        gray = cv2.cvtColor(adjusted, cv2.COLOR_BGR2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(gray)
-        
-        # Convertir back en couleur
-        adjusted = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
-        
-        return adjusted
+            HELPERS.log(
+                f"✅ Luminosité correcte "
+                f"(brightness={brightness:.2f}).",
+                "INFO"
+            )
+
+        # -------- CLAHE SUR LUMINANCE UNIQUEMENT --------
+        # Préserve les couleurs
+
+        lab = cv2.cvtColor(adjusted, cv2.COLOR_BGR2LAB)
+
+        l_channel, a_channel, b_channel = cv2.split(lab)
+
+        clahe = cv2.createCLAHE(
+            clipLimit=1.3,
+            tileGridSize=(8, 8)
+        )
+
+        l_channel = clahe.apply(l_channel)
+
+        lab = cv2.merge((l_channel, a_channel, b_channel))
+
+        adjusted = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+
+        # Déterminer le statut
+        if correction_applied:
+            return adjusted, "corrected"
+        else: 
+            adjusted = image.copy()
+
+        return adjusted, "kept"
     
-    def process_sharpness(self, image, threshold_low, threshold_high):
-        """Corrige la nettété (flou) d'une image"""
+    def process_sharpness(self, image, threshold=config["sharpness_threshold"], extreme_blur_threshold=extreme_blur_threshold):
+        """
+        Corrige la nettété (flou) d'une image.
+        
+        Paramètres:
+        - image: image à traiter
+        - threshold: seuil de netteté pour la correction (images légèrement floues)
+        - extreme_blur_threshold: seuil de flou extrême (images à ignorer)
+        
+        Retourne:
+        - tuple (processed_image, status) où status est 'corrected', 'ignored', ou 'kept'
+        """
         
         HELPERS.log(f"🔍 Vérification de la netteté (sharpness) pour ajustement...", "INFO")
         sharpness = HELPERS.get_sharpness(image)
         
-        if sharpness < threshold_low:
-            HELPERS.log(f"⚠ Image floue détectée (sharpness={sharpness:.2f}). Application d'un filtre de netteté.", "WARNING")
+        # Cas 1 : Image très floue → À IGNORER
+        if sharpness < extreme_blur_threshold:
+            HELPERS.log(f"❌ Image très floue détectée (sharpness={sharpness:.2f} < {extreme_blur_threshold}). Image ignorée.", "WARNING")
+            return None, 'ignored'
+        
+        # Cas 2 : Image légèrement floue → À CORRIGER
+        elif extreme_blur_threshold <= sharpness < threshold:
+            HELPERS.log(f"⚠️  Image légèrement floue détectée (sharpness={sharpness:.2f}). Application d'un filtre de netteté.", "WARNING")
             
             # Appliquer un filtre de netteté
             kernel = np.array([[0, -1, 0], [-1, 5,-1], [0, -1, 0]]) 
             adjusted = cv2.filter2D(image, -1, kernel)
-            return adjusted
+            return adjusted, 'corrected'
         
-        elif sharpness > threshold_high:
-            HELPERS.log(f"⚠ Image très nette détectée (sharpness={sharpness:.2f}). Application d'un léger flou pour éviter les artefacts.", "WARNING")
+        # Cas 3 : Image trop nette → Léger flou pour éviter les artefacts
+        elif sharpness > 500:
+            HELPERS.log(f"⚠️  Image très nette détectée (sharpness={sharpness:.2f}). Application d'un léger flou pour éviter les artefacts.", "WARNING")
             
             # Appliquer un léger flou pour éviter les artefacts
             adjusted = cv2.GaussianBlur(image, (3, 3), 0)
-            return adjusted
+            return adjusted, 'corrected'
         
-        return image
+        # Cas 4 : Image avec netteté acceptable → PAS DE CORRECTION
+        else:
+            HELPERS.log(f"✅ Netteté acceptable (sharpness={sharpness:.2f}). Aucune correction nécessaire.", "INFO")
+            return image, 'kept'
+    
+    def process_dataset(self, dataset_path, output_path=None, apply_brightness=True, apply_sharpness=True, skip_invalid=True):
+        """
+        Applique les corrections de luminosité et netteté sur TOUT le dataset.
+        Traite chaque image du dataset en appliquant process_brightness() et process_sharpness().
+        
+        Paramètres:
+        - dataset_path: chemin du dataset source (organisé par personne)
+        - output_path: chemin de sortie pour les images traitées (si None, utilise dataset_path)
+        - apply_brightness: booléen pour appliquer la correction de luminosité
+        - apply_sharpness: booléen pour appliquer la correction de netteté
+        - skip_invalid: booléen pour sauter les images invalides
+        
+        Retourne: dict avec statistiques du traitement
+        """
+        
+        output_path = output_path or dataset_path
+        os.makedirs(output_path, exist_ok=True)
+        
+        HELPERS.log(f"🔄 Traitement du dataset : {dataset_path}", "INFO")
+        HELPERS.log(f"   - Correction luminosité : {'✅' if apply_brightness else '❌'}", "INFO")
+        HELPERS.log(f"   - Correction netteté : {'✅' if apply_sharpness else '❌'}", "INFO")
+        
+        stats = {
+            "total_images": 0,
+            "processed": 0,
+            "skipped": 0,
+            "ignored": 0,
+            "brightness_corrected": 0,
+            "sharpness_corrected": 0,
+            "errors": []
+        }
+        
+        # Parcourir les dossiers de personnes
+        person_folders = HELPERS.read_folder(dataset_path)[1]
+        
+        for person_folder in person_folders:
+            person_name = os.path.basename(person_folder)
+            output_person_folder = os.path.join(output_path, person_name)
+            os.makedirs(output_person_folder, exist_ok=True)
+            
+            HELPERS.log(f"👤 Traitement de {person_name}...", "INFO")
+            
+            # Parcourir les images de la personne
+            image_files = HELPERS.read_folder(person_folder)[1]
+            
+            for image_file in image_files:
+                stats["total_images"] += 1
+                
+                # Validation de base
+                if not HELPERS.is_image_file(image_file):
+                    HELPERS.log(f"   ⏭️  {os.path.basename(image_file)} : Format non reconnu", "WARNING")
+                    stats["skipped"] += 1
+                    continue
+                
+                try:
+                    # Lire l'image
+                    image = HELPERS.safe_read_image(image_file)
+                    if image is None:
+                        raise ValueError(f"Impossible de lire : {image_file}")
+                    
+                    processed_image = image.copy()
+                    corrections_applied = []
+                    image_ignored = False
+                    
+                    # Appliquer la correction de netteté EN PREMIER (peut ignorer l'image)
+                    if apply_sharpness:
+                        try:
+                            processed_image, sharpness_status = self.process_sharpness(processed_image)
+                            
+                            if sharpness_status == 'ignored':
+                                # Image très floue → À IGNORER
+                                HELPERS.log(f"   🚫 {os.path.basename(image_file)} : Image ignorée (trop floue)", "WARNING")
+                                stats["ignored"] += 1
+                                image_ignored = True
+                                continue  # Passer à l'image suivante
+                            
+                            elif sharpness_status == 'corrected':
+                                corrections_applied.append("netteté")
+                                stats["sharpness_corrected"] += 1
+                            
+                        except Exception as e:
+                            HELPERS.log(f"   ⚠️  Erreur netteté : {str(e)[:40]}", "WARNING")
+                    
+                    # Appliquer la correction de luminosité SEULEMENT si l'image n'a pas été ignorée
+                    if apply_brightness and not image_ignored:
+                        try:
+                            processed_image, brightness_status = self.process_brightness(processed_image)
+
+                            if brightness_status == "corrected":
+                                corrections_applied.append("luminosité")
+                                stats["brightness_corrected"] += 1
+                        except Exception as e:
+                            HELPERS.log(f"   ⚠️  Erreur luminosité : {str(e)[:40]}", "WARNING")
+                    
+                    # Sauvegarder l'image traitée
+                    output_img_path = os.path.join(output_person_folder, os.path.basename(image_file))
+                    cv2.imwrite(output_img_path, processed_image)
+                    
+                    # Log du traitement
+                    if corrections_applied:
+                        HELPERS.log(f"   ✅ {os.path.basename(image_file)} : {', '.join(corrections_applied)}", "INFO")
+                    else:
+                        HELPERS.log(f"   ✔️  {os.path.basename(image_file)} : Aucune correction nécessaire", "INFO")
+                    
+                    stats["processed"] += 1
+                    
+                except Exception as e:
+                    error_msg = f"{os.path.basename(image_file)} : {str(e)[:50]}"
+                    HELPERS.log(f"   ❌ {error_msg}", "ERROR")
+                    stats["errors"].append(error_msg)
+                    
+                    if skip_invalid:
+                        stats["skipped"] += 1
+                    else:
+                        # Copier l'image non traitée si on ignore pas les erreurs
+                        try:
+                            output_img_path = os.path.join(output_person_folder, os.path.basename(image_file))
+                            cv2.imwrite(output_img_path, image)
+                            stats["processed"] += 1
+                        except:
+                            stats["skipped"] += 1
+            
+            HELPERS.log(f"✅ {person_name} : Traitement terminé", "INFO")
+        
+        # Résumé final
+        HELPERS.log(f"\n📊 Résumé du traitement :", "INFO")
+        HELPERS.log(f"   Total images : {stats['total_images']}", "INFO")
+        HELPERS.log(f"   Traitées : {stats['processed']} ✅", "INFO")
+        HELPERS.log(f"   Ignorées (trop floues) : {stats['ignored']} 🚫", "INFO")
+        HELPERS.log(f"   Skippées (erreurs/invalides) : {stats['skipped']} ⏭️", "INFO")
+        HELPERS.log(f"   Corrections luminosité : {stats['brightness_corrected']}", "INFO")
+        HELPERS.log(f"   Corrections netteté : {stats['sharpness_corrected']}", "INFO")
+        
+        if stats['errors']:
+            HELPERS.log(f"   Erreurs : {len(stats['errors'])} ❌", "WARNING")
+        
+        HELPERS.log(f"✅ Traitement du dataset terminé !", "INFO")
+        
+        return stats
+    
     
     # VALIDATION & NETTOYAGE
     
@@ -320,7 +571,7 @@ class DatasetProcessor:
         output_path = output_path or dataset_path
         os.makedirs(output_path, exist_ok=True)
         
-        HELPERS.log(f"Nettoyage du dataset : {dataset_path}", "INFOS")
+        HELPERS.log(f"Nettoyage du dataset : {dataset_path}", "INFO")
         
         deleted_count = 0
         valid_count = 0
@@ -335,43 +586,52 @@ class DatasetProcessor:
             output_person_folder = os.path.join(output_path, person_name)
             os.makedirs(output_person_folder, exist_ok=True) # créer un dossier pour chaque personne dans le dossier de sortie
             
-            HELPERS.log(f"🔍 Nettoyage de {person_name}...", "INFOS")
+            HELPERS.log(f"🔍 Nettoyage de {person_name}...", "INFO")
             
             image_files = HELPERS.read_folder(person_folder)[1]
             for image_file in image_files:
                 
                 # Validation de l'image
                 if HELPERS.is_image_file(image_file) and self.validation_image(image_file):
-                    HELPERS.log(f"Valid: {os.path.basename(image_file)}", "INFOS")
+                    HELPERS.log(f"Valid: {os.path.basename(image_file)}", "INFO")
                     
                     # Lire l'image de manière sécurisée
                     image = HELPERS.safe_read_image(image_file)
+                    
+                    # Aligné le visage et redimentionné l'image à (160,160)
+                    image = HELPERS.align_face(image) 
+                    HELPERS.log(f"🎨 {os.path.basename(image_file)} : Visage aligné et image redimentionné à (160,160)", "INFO")
+                    
+                    
                     if image is None:
                         HELPERS.log(f"Error reading image: {os.path.basename(image_file)}", "ERROR")
                         deleted += 1
                         continue
                     
                     # Vérifier la qualiter de l'image
-                    quality = HELPERS.check_image_quality(image)
+                    brightness_threshold= {'min': config["brightness_min"], "max": config["brightness_max"]}
+                    
+                    quality = HELPERS.check_image_quality(image, sharpness_threshold=config["sharpness_threshold"], brightness_threshold=brightness_threshold)
                     if not quality["is_valid"]:
                         HELPERS.log(f"⚠ {os.path.basename(image_file)} : Image de mauvaise qualité", "WARNING")
                         deleted += 1
                         continue
-                    HELPERS.log(f"✅ {os.path.basename(image_file)} : Qualité OK (Brightness: {quality['brightness']:.2f}, Sharpness: {quality['sharpness']:.2f})", "INFO")
-                    
-                    # Copier l'image valide
-                    output_img_path = os.path.join(output_person_folder, os.path.basename(image_file))
-                    cv2.imwrite(output_img_path, image)
-                    valid += 1
+                    else:
+                        HELPERS.log(f"✅ {os.path.basename(image_file)} : Qualité OK (Brightness: {quality["details"]['brightness']:.2f}, Sharpness: {quality["details"]['sharpness']:.2f})\n", "INFO")
+                        
+                        # Copier l'image valide
+                        output_img_path = os.path.join(output_person_folder, os.path.basename(image_file))
+                        cv2.imwrite(output_img_path, image)
+                        valid += 1
                 else:
                     HELPERS.log(f"Invalid: {os.path.basename(image_file)}", "ERROR")
                     deleted += 1
                     continue
-            HELPERS.log(f"✅ Nettoyage terminé. \n👤 {person_name} : {valid} valides ✔️, {deleted} supprimées ❌", "INFO")
+            HELPERS.log(f"✅ Nettoyage terminé. \n👤 {person_name} : {valid} valides ✔️, {deleted} supprimées ❌\n", "INFO")
             valid_count += valid
             deleted_count += deleted
         
-        HELPERS.log(f"✅📂 Dataset nettoyé : {valid_count} valides ✔️, {deleted_count} supprimées ❌", "INFO")
+        HELPERS.log(f"✅📂 Dataset nettoyé : \n{valid_count} valides ✔️, {deleted_count} supprimées ❌", "INFO")
         return {"valid": valid_count, "deleted": deleted_count}
 
     def validation_image(self, img_path):
@@ -384,108 +644,102 @@ class DatasetProcessor:
             self.log.append(f"Invalid: {os.path.basename(img_path)} - {e}")
             return False
     
-    # AUGMENTATION
+    # ====== ÉQUILIBRAGE & AUGMENTATION (BON ORDRE) ======
     
-    def augment_dataset(self, dataset_path, target_count = 2000, output_path = None):
+    def equilibrate_by_duplication(self, dataset_path, target_per_class=2000, output_path=None, random_seed=42):
         """
-        Augmenter chaque classe jusqu'au target_count
-        Paramètres :
-        - dataset_path : chemin du dataset à augmenter
-        - target_count : nombre d'images souhaité par classe après augmentation
-        - output_path : chemin de sortie (si None, utilise dataset_path)
+        ✅ BONNE PRATIQUE: Équilibre par DUPLICATION SIMPLE (déterministe)
+        À faire AVANT la séparation train/test/validation
+        
+        Cette méthode duplique les images des classes minoritaires
+        pour que toutes les classes aient le même nombre d'images.
+        
+        C'est DÉTERMINISTE (pas d'augmentation stochastique) donc
+        la séparation train/test n'est PAS compromuse.
+        
+        Paramètres:
+        - dataset_path: chemin du dataset source
+        - target_per_class: nombre d'images souhaitées par classe
+        - output_path: chemin de sortie (si None, utilise dataset_path)
+        - random_seed: pour reproductibilité
+        
+        Retourne: dict avec statistiques
         """
+        import shutil
+        
+        random.seed(random_seed)
+        np.random.seed(random_seed)
         
         output_path = output_path or dataset_path
         os.makedirs(output_path, exist_ok=True)
         
-        HELPERS.log(f"Augmentation du dataset (target = {target_count})", "INFOS")
+        HELPERS.log(f"⚖️  ÉQUILIBRAGE par duplication simple (target={target_per_class})", "INFO")
+        HELPERS.log(f"   ✅ Déterministe = Pas de fuite de données", "INFO")
+        HELPERS.log(f"   ℹ️  À faire AVANT split train/test", "INFO")
         
-        stats = {"augmented": 0, "skipped": 0} # statistiques d'augmentation
+        stats = {
+            "total_classes": 0,
+            "per_class": {},
+            "total_duplicated": 0,
+            "duplications_needed": 0
+        }
         
-        persons = HELPERS.read_folder(dataset_path)[1]
-        for person in persons:
-            person_name = os.path.basename(person)
+        # Parcourir les personnes
+        person_folders = HELPERS.read_folder(dataset_path)[1]
+        stats["total_classes"] = len(person_folders)
+        
+        for person_folder in person_folders:
+            person_name = os.path.basename(person_folder)
             output_person_folder = os.path.join(output_path, person_name)
             os.makedirs(output_person_folder, exist_ok=True)
             
-            images = HELPERS.read_folder(person)[1]
-            current_count = len(images)
+            # Lister les images originales
+            image_files = HELPERS.read_folder(person_folder)[1]
+            image_files = [f for f in image_files if HELPERS.is_image_file(f)]
             
-            # Vérifier si l'augmentation est nécessaire
-            if current_count >= target_count:
-                HELPERS.log(f"✅ {person_name} : {current_count} images (déjà suffisant)", "INFOS")
-                stats["skipped"] += 1
-                continue
+            current_count = len(image_files)
+            duplications_needed = max(0, target_per_class - current_count)
             
-            # Augmentation nécessaire
-            augmentations_needed = target_count - current_count
-            HELPERS.log(f"🔄 {person_name} : {current_count} images, besoin de {augmentations_needed} augmentations", "INFOS")
+            HELPERS.log(f"👤 {person_name}: {current_count} → {target_per_class} (besoin {duplications_needed} duplications)", "INFO")
             
-            # Copier les images existantes
-            for img in images:
-                output_img_path = os.path.join(output_person_folder, os.path.basename(img))
-                cv2.imwrite(output_img_path, cv2.imread(img))
+            # Copier les images originales
+            for img_path in image_files:
+                output_img_path = os.path.join(output_person_folder, os.path.basename(img_path))
+                shutil.copy2(img_path, output_img_path)
             
-            # Générer des augmentations
-            while current_count < target_count:
-                img_path = random.choice(images)
-                image = HELPERS.safe_read_image(img_path)
+            # Dupliquer les images pour atteindre le target
+            if duplications_needed > 0:
+                # Cycle sur les images originales pour les dupliquer
+                images_to_duplicate = image_files.copy()
+                random.shuffle(images_to_duplicate)
                 
-                if image is None:
-                    HELPERS.log(f"Error reading image for augmentation: {img_path}", "ERROR")
-                    continue
+                duplicated = 0
+                idx = 0
+                while duplicated < duplications_needed:
+                    img_path = images_to_duplicate[idx % len(images_to_duplicate)]
+                    img_name = os.path.splitext(os.path.basename(img_path))[0]
+                    img_ext = os.path.splitext(os.path.basename(img_path))[1]
+                    
+                    # Créer une copie avec un suffixe _dup_XXX
+                    new_img_name = f"{img_name}_dup_{duplicated}{img_ext}"
+                    output_img_path = os.path.join(output_person_folder, new_img_name)
+                    
+                    shutil.copy2(img_path, output_img_path)
+                    duplicated += 1
+                    idx += 1
                 
-                # Générer plusieurs augmentations à partir de la même image pour accélérer le processus
-                augmentation = self.augmenter_img(image)
-                    
-                # Enregistrer les augmentations générées
-                for aug_img in augmentation:
-                    if current_count == target_count: # vérifie à chaque fois pour éviter de dépasser le target_count
-                        break
-                    elif current_count > target_count:
-                        del images[0] # supprimer les images les plus anciennes pour faire de la place (si jamais on dépasse à cause des augmentations multiples)
-                        break
-
-                    aug_img_name = f"{os.path.splitext(os.path.basename(img_path))[0]}_aug_{current_count}.jpg"
-                    output_aug_path = os.path.join(output_person_folder, aug_img_name)
-                    
-                    cv2.imwrite(output_aug_path, aug_img)
-                    current_count += 1
-                    stats["augmented"] += 1
+                stats["total_duplicated"] += duplicated
+                stats["duplications_needed"] += duplications_needed
             
-            HELPERS.log(f"✅ {person_name} : Augmentation terminée ({current_count} images)", "INFOS")
+            stats["per_class"][person_name] = target_per_class
         
-        HELPERS.log(f"✅📂 Augmentation terminée : {stats['augmented']} images générées, {stats['skipped']} classes déjà suffisantes", "INFOS")
+        HELPERS.log(f"✅ Équilibrage terminé:", "INFO")
+        HELPERS.log(f"   Classes: {stats['total_classes']}", "INFO")
+        HELPERS.log(f"   Duplications totales: {stats['total_duplicated']}", "INFO")
+        HELPERS.log(f"   Chaque classe: {target_per_class} images", "INFO")
+        
         return stats
     
-    
-    # ENCODAGE
-    def encode_faces(self):
-        """Transformer image en vecteur"""
-        
-        return
-    
-    def save_encodings(self):
-        """Sauvegarde les encodages"""
-        
-        return
-    
-    def load_encodings(self):
-        """Charger les encodages"""
-        
-        return
-    
-    def train_test_split(self):
-        """Divise le dataset en Train/Test/Validation"""
-
-        return
-    
-    # PIPELINE GLOBAL
-    
-    def run_full_pipeline(self):
-        """Pipeline globale"""
-        
-        return
     
 """======================================================================"""
 
@@ -738,3 +992,302 @@ class TrainTestModel():
             'confusion_matrix': confusion_mat,
             'output_path': output_path
         }
+        
+        
+        
+"""
+=====================================================================
+                Traitement de la qualité des images
+=====================================================================
+"""
+    
+import os
+import cv2
+import json
+import numpy as np
+from datetime import datetime
+
+
+class ImageQualityProcessor():
+
+    def __init__(self):
+        self.metrics = {
+            "sharpness": [],
+            "brightness": [],
+            "contrast": []
+        }
+
+    # ==========================================================
+    # CALCUL DES MÉTRIQUES
+    # ==========================================================
+
+    def _compute_metrics(self, image):
+        """
+        Calcule :
+        - netteté
+        - luminosité
+        - contraste
+        """
+
+        if image is None:
+            raise ValueError("Image invalide.")
+
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        # Netteté (Variance du Laplacien)
+        sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
+
+        # Luminosité moyenne
+        brightness = np.mean(gray)
+
+        # Contraste (écart-type)
+        contrast = np.std(gray)
+
+        return sharpness, brightness, contrast
+
+    # ==========================================================
+    # SUPPRESSION DES OUTLIERS
+    # ==========================================================
+
+    def _remove_outliers(self, values):
+        """
+        Supprime les outliers avec méthode IQR
+        """
+
+        values = np.array(values)
+
+        q1 = np.percentile(values, 25)
+        q3 = np.percentile(values, 75)
+
+        iqr = q3 - q1
+
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+
+        filtered = values[
+            (values >= lower_bound) &
+            (values <= upper_bound)
+        ]
+
+        return filtered
+
+    # ==========================================================
+    # STATS DESCRIPTIVES
+    # ==========================================================
+
+    def _compute_summary_stats(self, values):
+        """
+        Retourne statistiques descriptives
+        """
+
+        values = np.array(values)
+
+        return {
+            "mean": round(float(np.mean(values)),2),
+            "median": round(float(np.median(values)),2),
+            "std": round(float(np.std(values)),2),
+            "min": round(float(np.min(values)),2),
+            "max": round(float(np.max(values)),2)
+        }
+
+    # ==========================================================
+    # SAUVEGARDE CONFIG
+    # ==========================================================
+
+    def _save_thresholds(self, config, output_path):
+        """
+        Sauvegarde JSON
+        """
+
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=4)
+
+        except PermissionError:
+            raise PermissionError(
+                f"Impossible d'écrire dans {output_path}"
+            )
+
+    def _load_thresholds(self,output_path):
+        """
+        Charger JSON
+        """
+
+        try:
+            with open(output_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                
+            return config
+
+        except PermissionError:
+            raise PermissionError(
+                f"Impossible d'écrire dans {output_path}"
+            )
+    # ==========================================================
+    # FIT QUALITY THRESHOLDS
+    # ==========================================================
+
+    def fit_quality_thresholds(
+        self,
+        dataset_path,
+        lower_percentile=10,
+        upper_percentile=90,
+        remove_outliers=True,
+        save_config=True
+    ):
+        """
+        Analyse le dataset et apprend les seuils optimaux
+        """
+        HELPERS.log(f"🔄Recherche des seuils optimals pour: netteté, luminosité, contraste ...", "INFO")
+
+        if not os.path.exists(dataset_path):
+            raise FileNotFoundError(
+                f"Dataset introuvable : {dataset_path}"
+            )
+
+        image_count = 0
+
+        # Reset metrics
+        self.metrics = {
+            "sharpness": [],
+            "brightness": [],
+            "contrast": []
+        }
+
+        # ======================================================
+        # PARCOURS DATASET
+        # ======================================================
+
+        for root, _, files in os.walk(dataset_path):
+
+            for file in files:
+
+                image_path = os.path.join(root, file)
+
+                image = cv2.imread(image_path)
+
+                if image is None:
+                    print(f"⚠️ Image ignorée : {image_path}")
+                    continue
+
+                try:
+                    sharpness, brightness, contrast = \
+                        self._compute_metrics(image)
+
+                    self.metrics["sharpness"].append(sharpness)
+                    self.metrics["brightness"].append(brightness)
+                    self.metrics["contrast"].append(contrast)
+
+                    image_count += 1
+
+                except Exception as e:
+                    print(f"⚠️ Erreur métrique : {image_path} | {e}")
+
+        # ======================================================
+        # VALIDATION MINIMALE
+        # ======================================================
+
+        if image_count < 30:
+            raise ValueError(
+                "Dataset insuffisant (minimum 30 images recommandé)."
+            )
+
+        print(f"✅ Images analysées : {image_count}")
+
+        # ======================================================
+        # SUPPRESSION OUTLIERS
+        # ======================================================
+
+        sharpness_values = self.metrics["sharpness"]
+        brightness_values = self.metrics["brightness"]
+        contrast_values = self.metrics["contrast"]
+
+        if remove_outliers:
+            sharpness_values = self._remove_outliers(sharpness_values)
+            brightness_values = self._remove_outliers(brightness_values)
+            contrast_values = self._remove_outliers(contrast_values)
+
+        # ======================================================
+        # CALCUL DES SEUILS
+        # ======================================================
+
+        sharpness_threshold = np.percentile(
+            sharpness_values,
+            lower_percentile
+        )
+
+        brightness_min = np.percentile(
+            brightness_values,
+            5
+        )
+
+        brightness_max = np.percentile(
+            brightness_values,
+            95
+        )
+
+        contrast_threshold = np.percentile(
+            contrast_values,
+            lower_percentile
+        )
+
+        # ======================================================
+        # GARDE-FOUS
+        # ======================================================
+
+        sharpness_threshold = max(15, sharpness_threshold)
+
+        brightness_min = max(20, brightness_min)
+
+        brightness_max = min(240, brightness_max)
+
+        contrast_threshold = max(10, contrast_threshold)
+
+        # ======================================================
+        # STATS DESCRIPTIVES
+        # ======================================================
+
+        summary_stats = {
+            "sharpness": self._compute_summary_stats(sharpness_values),
+            "brightness": self._compute_summary_stats(brightness_values),
+            "contrast": self._compute_summary_stats(contrast_values)
+        }
+
+        # ======================================================
+        # CONFIG FINALE
+        # ======================================================
+
+        thresholds = {
+            "sharpness_threshold": round(float(sharpness_threshold),2),
+            "brightness_min": round(float(brightness_min),2),
+            "brightness_max": round(float(brightness_max),2),
+            "contrast_threshold": round(float(contrast_threshold),2),
+            "dataset_size": image_count,
+            "summary_stats": summary_stats,
+            "computed_at": datetime.now().isoformat()
+        }
+
+        # ======================================================
+        # SAUVEGARDE
+        # ======================================================
+
+        if save_config:
+            self._save_thresholds(
+                thresholds,
+                "quality_thresholds.json"
+            )
+
+            print("✅ Seuils sauvegardés : quality_thresholds.json")
+
+        # ======================================================
+        # LOG FINAL
+        # ======================================================
+
+        print("\n📊 Seuils appris :")
+        print(f"Netteté min : {sharpness_threshold:.2f}")
+        print(f"Luminosité min : {brightness_min:.2f}")
+        print(f"Luminosité max : {brightness_max:.2f}")
+        print(f"Contraste min : {contrast_threshold:.2f}")
+
+        return thresholds
+    
