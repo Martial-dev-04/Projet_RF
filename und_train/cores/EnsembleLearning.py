@@ -226,10 +226,13 @@ class EnsembleRecognizer:
             HELPERS.log(f"👤🪄 {set_name} - Traitement : {person} ({len(paths_list)} images)...", "INFO")
             
             # Parcourir les images de la personne
-            for img_path in paths_list:
+            for idx, img_path in enumerate(paths_list, 1):
                 img_name = os.path.basename(img_path)
                 
                 embeddings_extracted = 0
+
+                if idx % 50 == 0:
+                    HELPERS.log(f"{os.path.basename(person)} : {idx}/{len(os.listdir(person_path))} images traitées","INFO")
                 
                 # Extraire avec CHAQUE modèle
                 for model_name in self.config['embedding_models']:
@@ -317,18 +320,21 @@ class EnsembleRecognizer:
         )
         
         # Étape 3: Extraire les embeddings SÉPARÉMENT
+        HELPERS.log("🚀== EXTRACTION POUR TRAIN ==", "INFO")
         X_train_ensemble, y_train = self.encode_faces_ensemble_from_paths(
             separation_result['train_paths'],
             enforce_detection=enforce_detection,
             set_name="TRAIN"
         )
-        
+
+        HELPERS.log("🚀== EXTRACTION POUR VALIDATION ==", "INFO")
         X_val_ensemble, y_val = self.encode_faces_ensemble_from_paths(
             separation_result['val_paths'],
             enforce_detection=enforce_detection,
             set_name="VALIDATION"
         )
-        
+
+        HELPERS.log("🚀== EXTRACTION POUR TEST ==", "INFO")
         X_test_ensemble, y_test = self.encode_faces_ensemble_from_paths(
             separation_result['test_paths'],
             enforce_detection=enforce_detection,
@@ -336,6 +342,7 @@ class EnsembleRecognizer:
         )
         
         # Étape 4: Sauvegarder les embeddings dans structure train/val/test
+        HELPERS.log("✅ = SAUVEGARDE DES EMBEDDINGS =", "INFO")
         embeddings_path = os.path.join(output_path, "embeddings_ensemble")
         embeddings_result = self.save_embeddings_structured(
             X_train_ensemble, y_train,
@@ -855,7 +862,7 @@ class EnsembleRecognizer:
     
     # ====== SAUVEGARDE/CHARGEMENT ======
     
-    def save_ensemble(self, filepath='C:/PROJETS/Reconnaissance_faciale/Projet_RF/modelensemble_model.pkl'):
+    def save_ensemble(self, filepath='modelensemble_model.pkl'):
         """
         Sauvegarde tout le modèle ensemble
         
