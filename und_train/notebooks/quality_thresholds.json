@@ -1,31 +1,31 @@
 {
-    "sharpness_threshold": 56.66,
-    "brightness_min": 82.12,
-    "brightness_max": 185.98,
-    "contrast_threshold": 32.87,
-    "dataset_size": 20001,
+    "sharpness_threshold": 71.29,
+    "brightness_min": 83.61,
+    "brightness_max": 180.58,
+    "contrast_threshold": 34.56,
+    "dataset_size": 102009,
     "summary_stats": {
         "sharpness": {
-            "mean": 188.65,
-            "median": 155.33,
-            "std": 125.85,
-            "min": 5.24,
-            "max": 585.16
+            "mean": 201.18,
+            "median": 177.37,
+            "std": 115.81,
+            "min": 3.85,
+            "max": 549.74
         },
         "brightness": {
-            "mean": 123.77,
-            "median": 114.83,
-            "std": 33.9,
-            "min": 62.77,
+            "mean": 122.61,
+            "median": 110.43,
+            "std": 32.46,
+            "min": 34.93,
             "max": 236.55
         },
         "contrast": {
-            "mean": 41.95,
-            "median": 41.93,
-            "std": 7.12,
-            "min": 22.08,
-            "max": 61.7
+            "mean": 44.01,
+            "median": 43.97,
+            "std": 7.15,
+            "min": 24.13,
+            "max": 63.88
         }
     },
-    "computed_at": "2026-04-29T21:29:43.442106"
+    "computed_at": "2026-05-06T12:11:49.578557"
 }

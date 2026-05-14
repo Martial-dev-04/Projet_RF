@@ -231,8 +231,8 @@ class EnsembleRecognizer:
                 
                 embeddings_extracted = 0
 
-                if idx % 50 == 0:
-                    HELPERS.log(f"{os.path.basename(person)} : {idx}/{len(os.listdir(person_path))} images traitées","INFO")
+                if idx % 10 == 0:
+                    HELPERS.log(f"{person} : {idx}/{len(paths_list)} images traitées","INFO")
                 
                 # Extraire avec CHAQUE modèle
                 for model_name in self.config['embedding_models']:
@@ -635,7 +635,7 @@ class EnsembleRecognizer:
     
     # ====== ENTRAÎNEMENT ENSEMBLE DE CLASSIFIEURS ======
     
-    def train_ensemble(self, X_train, y_train):
+    def train_ensemble(self, X_train, y_train,X_val=None,y_val=None):
         """
         Entraîne plusieurs classifieurs sur les embeddings
         
@@ -643,50 +643,149 @@ class EnsembleRecognizer:
         - X_train: features d'entraînement
         - y_train: labels d'entraînement
         """
+        import time
+        import numpy as np
+    
         from sklearn.svm import SVC
         from sklearn.neighbors import KNeighborsClassifier
         from sklearn.ensemble import RandomForestClassifier
         from sklearn.preprocessing import LabelEncoder, StandardScaler
-        
-        HELPERS.log(f"🚀 Entraînement de {len(self.config['classifiers'])} classifieurs...", "INFO")
-        
-        # Encoder les labels
+        from sklearn.metrics import accuracy_score
+    
+        HELPERS.log("=" * 70, "INFO")
+        HELPERS.log("🚀 DÉMARRAGE ENTRAÎNEMENT ENSEMBLE", "INFO")
+        HELPERS.log("=" * 70, "INFO")
+    
+        HELPERS.log(f"Samples: {len(X_train)}", "INFO")
+        HELPERS.log(f"Features: {X_train.shape[1]}", "INFO")
+        HELPERS.log(f"Classes: {len(np.unique(y_train))}", "INFO")
+    
+        global_start = time.time()
+    
+        # Encodage labels
+        HELPERS.log("🔤 Encodage des labels...", "INFO")
         self.label_encoder = LabelEncoder()
         y_encoded = self.label_encoder.fit_transform(y_train)
-        
-        # Normaliser les features
+    
+        # Scaling
+        HELPERS.log("⚖️ Standardisation des features...", "INFO")
         self.scaler = StandardScaler()
         X_scaled = self.scaler.fit_transform(X_train)
-        
-        # Entraîner chaque classifieur
-        if 'svm' in self.config['classifiers']:
-            HELPERS.log("  → Entraînement SVM (RBF)...", "INFO")
-            self.classifiers['svm'] = SVC(
-                kernel='rbf',
-                C=1.0,
-                gamma='scale',
-                probability=True,
-                random_state=42
+    
+        X_val_scaled = None
+        y_val_encoded = None
+    
+        if X_val is not None and y_val is not None:
+            X_val_scaled = self.scaler.transform(X_val)
+            y_val_encoded = self.label_encoder.transform(y_val)
+    
+        total_models = len(self.config["classifiers"])
+    
+        for idx, clf_name in enumerate(self.config["classifiers"], start=1):
+    
+            HELPERS.log(
+                f"\n📌 [{idx}/{total_models}] Entraînement : {clf_name.upper()}",
+                "INFO"
             )
-            self.classifiers['svm'].fit(X_scaled, y_encoded)
-        
-        if 'knn' in self.config['classifiers']:
-            HELPERS.log("  → Entraînement KNN (k=5)...", "INFO")
-            self.classifiers['knn'] = KNeighborsClassifier(n_neighbors=5, metric='euclidean')
-            self.classifiers['knn'].fit(X_scaled, y_encoded)
-        
-        if 'rf' in self.config['classifiers']:
-            HELPERS.log("  → Entraînement Random Forest (100 trees)...", "INFO")
-            self.classifiers['rf'] = RandomForestClassifier(
-                n_estimators=100,
-                max_depth=20,
-                random_state=42,
-                n_jobs=-1
+    
+            start_time = time.time()
+    
+            # ==========================
+            # SVM
+            # ==========================
+            if clf_name == "svm":
+    
+                model = SVC(
+                    kernel="rbf",
+                    C=0.0001,
+                    gamma="scale",
+                    probability=True,
+                    random_state=42,
+                    verbose=2,
+                    max_iter=5
+                )
+    
+                model.fit(X_scaled, y_encoded)
+    
+            # ==========================
+            # KNN
+            # ==========================
+            elif clf_name == "knn":
+    
+                model = KNeighborsClassifier(
+                    n_neighbors=10,
+                    metric="euclidean",
+                    n_jobs=-1
+                )
+    
+                model.fit(X_scaled, y_encoded)
+    
+            # ==========================
+            # RANDOM FOREST (progressive)
+            # ==========================
+            elif clf_name == "rf":
+    
+                model = RandomForestClassifier(
+                    n_estimators=10,
+                    max_depth=30,
+                    random_state=42,
+                    warm_start=True,
+                    n_jobs=-1,
+                    verbose=2
+                )
+    
+                total_trees = 100
+    
+                for tree_idx in range(1, total_trees + 1):
+                    model.n_estimators = tree_idx
+                    model.fit(X_scaled, y_encoded)
+    
+                    if tree_idx % 10 == 0:
+                        HELPERS.log(
+                            f"🌲 RandomForest : {tree_idx}/{total_trees} arbres",
+                            "INFO"
+                        )
+    
+            else:
+                continue
+    
+            elapsed = time.time() - start_time
+    
+            self.classifiers[clf_name] = model
+    
+            # Score train
+            train_preds = model.predict(X_scaled)
+            train_acc = accuracy_score(y_encoded, train_preds)
+    
+            HELPERS.log(
+                f"✅ {clf_name.upper()} entraîné en {elapsed:.2f}s",
+                "INFO"
             )
-            self.classifiers['rf'].fit(X_scaled, y_encoded)
-        
-        HELPERS.log(f"✅ {len(self.classifiers)} classifieurs entraînés", "INFO")
-        
+    
+            HELPERS.log(
+                f"📈 Train accuracy: {train_acc:.4f}",
+                "INFO"
+            )
+    
+            # Validation live
+            if X_val_scaled is not None:
+                val_preds = model.predict(X_val_scaled)
+                val_acc = accuracy_score(y_val_encoded, val_preds)
+    
+                HELPERS.log(
+                    f"🧪 Validation accuracy: {val_acc:.4f}",
+                    "INFO"
+                )
+    
+        total_time = time.time() - global_start
+    
+        HELPERS.log("=" * 70, "INFO")
+        HELPERS.log(
+            f"✅ Entraînement terminé ({total_time:.2f}s)",
+            "INFO"
+        )
+        HELPERS.log("=" * 70, "INFO")
+    
         return self.classifiers
     
     # ====== PRÉDICTION AVEC VOTATION ======

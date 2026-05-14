@@ -646,6 +646,200 @@ class DatasetProcessor:
     
     # ====== ÉQUILIBRAGE & AUGMENTATION (BON ORDRE) ======
     
+    def augment_dataset_to_target(self, dataset_path, target_per_class=2000, output_path=None, random_seed=42):
+        """
+        ✅ AUGMENTATION AVANCÉE: Génère des variantes d'images pour équilibrer les classes
+        À faire AVANT la séparation train/test/validation
+        
+        Cette méthode génère plusieurs variantes d'augmentation pour chaque image:
+        - Rotation (±15°)
+        - Zoom (1.05 à 1.4x)
+        - Flip horizontal
+        - Contraste amélioré
+        - Ajout de bruit Gaussien
+        
+        Chaque variante est une VRAIE image augmentée (pas juste copiée).
+        
+        Paramètres:
+        - dataset_path: chemin du dataset source
+        - target_per_class: nombre d'images souhaitées par classe
+        - output_path: chemin de sortie (si None, utilise dataset_path)
+        - random_seed: pour reproductibilité
+        
+        Retourne: dict avec statistiques
+        """
+        import shutil
+        
+        random.seed(random_seed)
+        np.random.seed(random_seed)
+        
+        output_path = output_path or dataset_path
+        os.makedirs(output_path, exist_ok=True)
+        
+        HELPERS.log(f"🎨 AUGMENTATION DATASET (target={target_per_class})", "INFO")
+        HELPERS.log(f"   ✅ Génère VRAIES variantes: rotation, zoom, flip, contraste, bruit", "INFO")
+        HELPERS.log(f"   ℹ️  À faire AVANT split train/test", "INFO")
+        
+        stats = {
+            "total_classes": 0,
+            "per_class": {},
+            "total_original": 0,
+            "total_augmented": 0,
+            "augmentation_per_class": {},
+            "errors": []
+        }
+        
+        # Parcourir les personnes
+        person_folders = HELPERS.read_folder(dataset_path)[1]
+        stats["total_classes"] = len(person_folders)
+        
+        for person_folder in person_folders:
+            person_name = os.path.basename(person_folder)
+            output_person_folder = os.path.join(output_path, person_name)
+            os.makedirs(output_person_folder, exist_ok=True)
+            
+            # Lister les images originales
+            image_files = HELPERS.read_folder(person_folder)[1]
+            image_files = [f for f in image_files if HELPERS.is_image_file(f)]
+            
+            current_count = len(image_files)
+            augmentations_needed = max(0, target_per_class - current_count)
+            
+            HELPERS.log(f"👤 {person_name}: {current_count} → {target_per_class} (besoin {augmentations_needed} augmentations)", "INFO")
+            
+            stats["total_original"] += current_count
+            stats["augmentation_per_class"][person_name] = {
+                "original": current_count,
+                "augmented": 0,
+                "target": target_per_class
+            }
+            
+            # Copier les images originales
+            for img_path in image_files:
+                output_img_path = os.path.join(output_person_folder, os.path.basename(img_path))
+                shutil.copy2(img_path, output_img_path)
+            
+            # Générer les variantes d'augmentation
+            if augmentations_needed > 0:
+                images_to_augment = image_files.copy()
+                random.shuffle(images_to_augment)
+                
+                augmented = 0
+                idx = 0
+                
+                while augmented < augmentations_needed:
+                    img_path = images_to_augment[idx % len(images_to_augment)]
+                    img_name = os.path.splitext(os.path.basename(img_path))[0]
+                    img_ext = os.path.splitext(os.path.basename(img_path))[1]
+                    
+                    try:
+                        # Lire l'image
+                        image = cv2.imread(img_path)
+                        if image is None:
+                            HELPERS.log(f"   ⚠️  Impossible de lire: {os.path.basename(img_path)}", "WARNING")
+                            idx += 1
+                            continue
+                        
+                        # Choisir aléatoirement une transformation
+                        transformation = random.choice([
+                            'rotation',
+                            'zoom',
+                            'flip_h',
+                            'contraste',
+                            'bruit'
+                        ])
+                        
+                        augmented_image = None
+                        
+                        # === ROTATION ===
+                        if transformation == 'rotation':
+                            angle = random.uniform(-15, 15)
+                            h, w = image.shape[:2]
+                            M = cv2.getRotationMatrix2D((w//2, h//2), angle, 1)
+                            augmented_image = cv2.warpAffine(image, M, (w, h), borderMode=cv2.BORDER_REFLECT)
+                            aug_suffix = f"rot_{int(angle)}"
+                        
+                        # === ZOOM ===
+                        elif transformation == 'zoom':
+                            zoom_factor = random.uniform(1.05, 1.4)
+                            h, w = image.shape[:2]
+                            nh, nw = int(h/zoom_factor), int(w/zoom_factor)
+                            y_start = (h - nh) // 2
+                            x_start = (w - nw) // 2
+                            cropped = image[y_start:y_start+nh, x_start:x_start+nw]
+                            augmented_image = cv2.resize(cropped, (w, h), interpolation=cv2.INTER_LINEAR)
+                            aug_suffix = f"zoom_{zoom_factor:.2f}"
+                        
+                        # === FLIP HORIZONTAL ===
+                        elif transformation == 'flip_h':
+                            augmented_image = cv2.flip(image, 1)
+                            aug_suffix = "flip_h"
+                        
+                        # === CONTRASTE ===
+                        elif transformation == 'contraste':
+                            alpha = random.uniform(1.2, 1.6)
+                            beta = random.randint(-10, 10)
+                            augmented_image = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+                            aug_suffix = f"contrast_{alpha:.2f}"
+                        
+                        # === BRUIT GAUSSIEN ===
+                        elif transformation == 'bruit':
+                            noise = np.random.normal(0, 8, image.shape)
+                            augmented_image = cv2.add(image.astype(float), noise)
+                            augmented_image = np.clip(augmented_image, 0, 255).astype(np.uint8)
+                            aug_suffix = "noise"
+                        
+                        # Vérifier la qualité avant de sauvegarder
+                        if augmented_image is not None:
+                            # Vérifier la qualité de l'image augmentée
+                            brightness_threshold = {'min': config["brightness_min"], "max": config["brightness_max"]}
+                            quality = HELPERS.check_image_quality(
+                                augmented_image, 
+                                sharpness_threshold=config["sharpness_threshold"], 
+                                brightness_threshold=brightness_threshold
+                            )
+                            
+                            # Sauvegarder SEULEMENT si la qualité est acceptable
+                            if quality["is_valid"]:
+                                new_img_name = f"{img_name}_aug_{augmented}_{aug_suffix}{img_ext}"
+                                output_img_path = os.path.join(output_person_folder, new_img_name)
+                                cv2.imwrite(output_img_path, augmented_image)
+                                
+                                augmented += 1
+                                stats["total_augmented"] += 1
+                                stats["augmentation_per_class"][person_name]["augmented"] += 1
+                            else:
+                                # Image augmentée rejetée pour mauvaise qualité
+                                HELPERS.log(
+                                    f"   ⚠️  Image augmentée rejetée (qualité insuffisante): "
+                                    f"Brightness={quality['details']['brightness']:.2f}, "
+                                    f"Sharpness={quality['details']['sharpness']:.2f}",
+                                    "WARNING"
+                                )
+                        
+                    except Exception as e:
+                        error_msg = f"{os.path.basename(img_path)}: {str(e)[:50]}"
+                        HELPERS.log(f"   ❌ Erreur augmentation: {error_msg}", "ERROR")
+                        stats["errors"].append(error_msg)
+                    
+                    idx += 1
+            
+            stats["per_class"][person_name] = target_per_class
+            HELPERS.log(f"   ✅ {person_name} augmentée: {stats['augmentation_per_class'][person_name]['augmented']} variantes générées", "INFO")
+        
+        # Résumé final
+        HELPERS.log(f"\n✅ Augmentation terminée:", "INFO")
+        HELPERS.log(f"   Classes: {stats['total_classes']}", "INFO")
+        HELPERS.log(f"   Images originales: {stats['total_original']}", "INFO")
+        HELPERS.log(f"   Images augmentées: {stats['total_augmented']}", "INFO")
+        HELPERS.log(f"   Total: {stats['total_original'] + stats['total_augmented']}", "INFO")
+        HELPERS.log(f"   Cible par classe: {target_per_class} images", "INFO")
+        
+        if stats['errors']:
+            HELPERS.log(f"   Erreurs: {len(stats['errors'])} ⚠️", "WARNING")
+        
+        return stats
+    
     def equilibrate_by_duplication(self, dataset_path, target_per_class=2000, output_path=None, random_seed=42):
         """
         ✅ BONNE PRATIQUE: Équilibre par DUPLICATION SIMPLE (déterministe)
